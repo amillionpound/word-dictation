@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>单词听写</title>
+<title>悦听记·英语自习室</title>
 <style>
 :root{--pri:#534AB7;--pri-l:#EEEDFE;--bg:#F5F4F8;--card:#fff;--text:#2C2C2A;--muted:#888780;--ok:#0F6E56;--err:#A32D2D;--warn:#854F0B;--bd:#E5E5E5;--r:8px}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -142,7 +142,8 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <!-- Login -->
 <div id="view-login" class="view">
 <div class="login-box">
-<h2>悦听记·英语自习室</h2>
+<h2 id="ui-title">悦听记·英语自习室</h2>
+<div id="ui-subtitle" class="muted tc hidden" style="font-size:14px;margin:2px 0 4px;"></div>
 <div id="login-motto" class="motto"></div>
 <div id="login-family-section">
 <div class="family-banner hidden" id="login-family-banner">当前家庭 · 家长：<b id="login-family-name">—</b> <span id="login-family-tag" class="tag tag-test hidden">测试家庭</span></div>
@@ -169,10 +170,11 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <label>4位录入码</label>
 <input id="login-code-input" maxlength="4" placeholder="输入4位数字" inputmode="numeric" style="font-size:28px;text-align:center;letter-spacing:8px">
 <button class="btn btn-primary btn-block" onclick="doEntryCodeLogin()">进入录入</button>
+<p id="ui-login-code-desc" class="muted sm tc mt8 hidden"></p>
 </div>
 </div>
 <div id="login-admin-section" class="col gap12">
-<p class="muted tc">家长/孩子登录请使用家庭专属链接</p>
+<p class="muted tc" id="ui-login-family-tip">家长/孩子登录请使用家庭专属链接</p>
 <div class="role-tabs">
 <div class="role-tab active" data-role="admin" onclick="switchLoginRole('admin')">超管登录</div>
 <div class="role-tab" data-role="family-url" onclick="switchLoginRole('family-url')">输入家庭ID</div>
@@ -189,7 +191,7 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 </div>
 </div>
 </div>
-<div class="login-foot muted tc">悦听记·英语自习室 <span id="login-version"></span> · 学海无涯，砥砺前行</div>
+<div class="login-foot muted tc"><span id="ui-title-foot">悦听记·英语自习室</span> <span id="login-version"></span> · <span id="ui-foot">学海无涯，砥砺前行</span></div>
 <details class="qa-box">
   <summary>AI 小助手（英语学习问答）</summary>
   <div class="col gap8 mt8">
@@ -269,7 +271,7 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 </div>
 <div class="card">
 <h3>录入码</h3>
-<p class="muted sm mt8">为孩子生成4位录入码，孩子可用此码录入单词（8小时有效）</p>
+<p class="muted sm mt8" id="ui-entry-code-help">为孩子生成4位录入码，孩子可用此码录入单词（8小时有效）</p>
 <div id="entry-code-area" class="mt8"></div>
 </div>
 </div>
@@ -661,8 +663,45 @@ function copyText(t) {
 }
 
 // ==================== Init ====================
+// ==================== 页面文案（环境变量 PAGE_CONFIG 驱动） ====================
+const DEFAULT_UI = {
+    title: '悦听记·英语自习室',
+    subtitle: '',
+    foot: '学海无涯，砥砺前行',
+    entry_code_help: '为孩子生成4位录入码，孩子可用此码录入单词（8小时有效）',
+    login_code_desc: '',
+    login_family_tip: '家长/孩子登录请使用家庭专属链接'
+};
+async function applyUIConfig() {
+    const cfg = Object.assign({}, DEFAULT_UI);
+    try {
+        const r = await apiGet('ui-config');
+        if (r && r.code === 0 && r.data && typeof r.data === 'object') {
+            Object.assign(cfg, r.data);
+        }
+    } catch (e) { /* 拉取失败则使用默认文案 */ }
+    const setText = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setText('ui-title', cfg.title);
+    setText('ui-title-foot', cfg.title);
+    setText('ui-foot', cfg.foot);
+    setText('ui-entry-code-help', cfg.entry_code_help);
+    setText('ui-login-family-tip', cfg.login_family_tip);
+    const sub = document.getElementById('ui-subtitle');
+    if (sub) {
+        if (cfg.subtitle) { sub.textContent = cfg.subtitle; sub.classList.remove('hidden'); }
+        else { sub.classList.add('hidden'); }
+    }
+    const lcd = document.getElementById('ui-login-code-desc');
+    if (lcd) {
+        if (cfg.login_code_desc) { lcd.textContent = cfg.login_code_desc; lcd.classList.remove('hidden'); }
+        else { lcd.classList.add('hidden'); }
+    }
+    document.title = cfg.title;
+}
+
 function init() {
     initTTS();
+    applyUIConfig();
     const params = new URLSearchParams(location.search);
     const fid = params.get('family');
     if (fid) {

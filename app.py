@@ -48,6 +48,7 @@ COS_SID = os.environ.get('COS_SECRET_ID', '')
 COS_SKEY = os.environ.get('COS_SECRET_KEY', '')
 COS_BUCKET = os.environ.get('COS_BUCKET', 'kb-efm-analytics')
 COS_REGION = os.environ.get('COS_REGION', 'ap-guangzhou')
+PAGE_CONFIG = os.environ.get('PAGE_CONFIG', '{}')  # 前端页面文案 JSON（标题/副标题/录入码说明等），环境变量驱动，便于随时修改、无需重新部署前端
 COS_PREFIX = 'vocab-buddy/'
 COS_HOST = f'{COS_BUCKET}.cos.{COS_REGION}.myqcloud.com'
 COS_SCHEME = 'https' if _SSL_CTX else 'http'
@@ -1117,6 +1118,18 @@ def index():
 @app.route('/api/version')
 def version_route():
     return ok({'version': APP_VERSION})
+
+
+@app.route('/api/ui-config')
+def ui_config_route():
+    """返回由环境变量 PAGE_CONFIG(JSON) 驱动的前端页面文案，前端拉取后填充标题/副标题/录入码说明等。"""
+    try:
+        cfg = json.loads(PAGE_CONFIG) if isinstance(PAGE_CONFIG, str) else PAGE_CONFIG
+    except Exception:
+        cfg = {}
+    if not isinstance(cfg, dict):
+        cfg = {}
+    return ok(cfg)
 
 # ==================== Routes: Auth ====================
 @app.route('/api/login', methods=['POST'])
