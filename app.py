@@ -1030,33 +1030,6 @@ def _find_static(filename):
     return None
 
 # ==================== Routes: Static ====================
-@app.route('/debug/files')
-def debug_files():
-    """List files in SCF runtime to diagnose missing index.html."""
-    import glob
-    info = {
-        '__file__': __file__,
-        'cwd': os.getcwd(),
-        'dirname': os.path.dirname(os.path.abspath(__file__)),
-    }
-    dirs_to_check = [
-        os.path.dirname(os.path.abspath(__file__)),
-        os.getcwd(),
-        '/var/task',
-        '/mnt/auto',
-    ]
-    listings = {}
-    for d in dirs_to_check:
-        try:
-            if os.path.isdir(d):
-                listings[d] = os.listdir(d)
-            else:
-                listings[d] = '(not a directory)'
-        except Exception as e:
-            listings[d] = f'(error: {e})'
-    info['listings'] = listings
-    return jsonify(info)
-
 @app.route('/')
 def index():
     html_path = _find_static('index.html')
