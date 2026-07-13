@@ -1,7 +1,9 @@
 {
-  "function_name": "ca9zcay6yh",
+  "function_name": "word-dictation",
   "namespace": "default",
   "region": "ap-guangzhou",
   "handler": "app.main_handler",
-  "files": ["app.py", "index.html"]
+  "access_url": "https://1256784020-ca9zcay6yh.ap-guangzhou.tencentscf.com",
+  "files": ["app.py", "index.html", "scf_bootstrap"],
+  "deps": ["flask<2.0", "Werkzeug<2.0", "Jinja2<3.0", "itsdangerous<2.0", "click<8.0", "MarkupSafe<2.0"]
 }
