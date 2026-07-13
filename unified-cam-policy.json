@@ -19,10 +19,11 @@
       "action": [
         "scf:UpdateFunctionCode",
         "scf:PublishVersion",
-        "scf:GetFunction"
+        "scf:GetFunction",
+        "scf:ListFunctions"
       ],
       "resource": [
-        "qcs::scf::uid/1256784020:namespace/default/function/*"
+        "qcs::scf:::uin/100005778049:namespace/default/function/*"
       ]
     }
   ]
