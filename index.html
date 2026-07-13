@@ -284,10 +284,18 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <!-- Child Dashboard -->
 <div id="view-child" class="view hidden">
 <div class="tabs">
-<div class="tab active" data-ctab="dict" onclick="switchChildTab('dict')">听写</div>
-<div class="tab" data-ctab="records" onclick="switchChildTab('records')">成绩</div>
+    <div class="tab active" data-ctab="learn" onclick="switchChildTab('learn')">学习</div>
+    <div class="tab" data-ctab="dict" onclick="switchChildTab('dict')">听写</div>
+    <div class="tab" data-ctab="records" onclick="switchChildTab('records')">成绩</div>
 </div>
-<div id="ctab-dict">
+<div id="ctab-learn">
+<div class="card">
+<h3>单词学习</h3>
+<p class="muted sm mt8">选择单元，先学习单词再听写</p>
+<div id="learn-unit-list" class="mt8"></div>
+<div id="learn-words-area" class="mt8 hidden"></div>
+</div>
+</div>
 <div class="card">
 <h3>开始听写</h3>
 <p class="muted sm mt8">选择单词单元，开始听写练习</p>
@@ -473,6 +481,7 @@ async function apiDel(path) {
 
 // ==================== TTS ====================
 let ttsVoices = [];
+let ttsAudio = null;
 function initTTS() {
     function load() { ttsVoices = speechSynthesis.getVoices(); }
     load();
@@ -480,6 +489,18 @@ function initTTS() {
         speechSynthesis.onvoiceschanged = load;
 }
 function speak(word) {
+    // 首选有道TTS（国内可靠，不受iframe沙箱限制）
+    const ttsUrl = 'https://dict.youdao.com/dictvoice?type=1&audio=' + encodeURIComponent(word);
+    if (ttsAudio) { ttsAudio.pause(); ttsAudio = null; }
+    ttsAudio = new Audio(ttsUrl);
+    ttsAudio.play().then(() => {
+        // 有道TTS播放成功
+    }).catch(() => {
+        // 回退到浏览器 speechSynthesis
+        speakWithWebTTS(word);
+    });
+}
+function speakWithWebTTS(word) {
     if (!speechSynthesis) { showToast('浏览器不支持语音播放', 'err'); return; }
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(word);
@@ -1240,13 +1261,65 @@ async function startDictationP() {
 function switchChildTab(tab) {
     document.querySelectorAll('[data-ctab]').forEach(t => t.classList.remove('active'));
     document.querySelector(`[data-ctab="${tab}"]`).classList.add('active');
+    document.getElementById('ctab-learn').classList.toggle('hidden', tab !== 'learn');
     document.getElementById('ctab-dict').classList.toggle('hidden', tab !== 'dict');
     document.getElementById('ctab-records').classList.toggle('hidden', tab !== 'records');
+    if (tab === 'learn') loadLearnPage();
     if (tab === 'records') loadChildRecords();
 }
 
 async function loadChild() {
     loadChildUnits();
+    loadLearnPage();
+}
+
+async function loadLearnPage() {
+    const r = await apiGet('units?family_id=' + S.family_id);
+    const el = document.getElementById('learn-unit-list');
+    if (r.code !== 0 || !r.data || !r.data.length) {
+        el.innerHTML = '<div class="empty"><p>暂无单词单元</p></div>';
+        document.getElementById('learn-words-area').classList.add('hidden');
+        return;
+    }
+    el.innerHTML = r.data.filter(u => u.status === 'pending' || u.status === 'locked').map(u => `
+        <label class="unit-checkbox" onclick="renderLearnUnitWords('${u.unit_id}', this)">
+            <input type="radio" name="learn-unit">
+            <div>
+                <div class="li-title">${esc(u.title)}</div>
+                <div class="li-sub">${u.word_count}词</div>
+            </div>
+        </label>
+    `).join('');
+    document.getElementById('learn-words-area').classList.add('hidden');
+}
+
+async function renderLearnUnitWords(unitId, el) {
+    document.querySelectorAll('#learn-unit-list .unit-checkbox').forEach(l => l.classList.remove('active'));
+    if (el) el.classList.add('active');
+    const r = await apiGet('units/' + unitId + '?family_id=' + S.family_id);
+    const area = document.getElementById('learn-words-area');
+    if (r.code !== 0 || !r.data || !r.data.words || !r.data.words.length) {
+        area.innerHTML = '<div class="empty"><p>暂无单词</p></div>';
+        area.classList.remove('hidden');
+        return;
+    }
+    const wordsHtml = r.data.words.map((w, i) => `
+        <div class="word-card">
+            <div class="w-head">
+                <span class="w-word">${i+1}. ${esc(w.word)}</span>
+                <button class="btn btn-sec btn-sm" onclick="speak('${esc(w.word)}')">播放</button>
+            </div>
+            <div class="w-pho">${esc(w.phonetic || '')}</div>
+            <div class="w-tr">${esc(w.translation || '')}</div>
+            <div class="w-st">${esc(w.example || '')}</div>
+        </div>
+    `).join('');
+    area.innerHTML = `
+        <h4 style="margin-bottom:8px">${esc(r.data.title)}</h4>
+        <p class="muted sm mb8">${r.data.words.length}词 · 点击播放收听发音</p>
+        ${wordsHtml}
+    `;
+    area.classList.remove('hidden');
 }
 
 async function loadChildUnits() {
