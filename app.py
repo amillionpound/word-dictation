@@ -159,8 +159,12 @@ def extract_json(text):
     return None
 
 # ==================== DeepSeek API ====================
+_LAST_DS_ERROR = ''  # Last DeepSeek error for diagnosis
+
 def deepseek(prompt, system=None, timeout=30, max_tokens=4096, call_type='general'):
+    global _LAST_DS_ERROR
     if not DEEPSEEK_KEY:
+        _LAST_DS_ERROR = 'DEEPSEEK_API_KEY 环境变量未设置或为空'
         log_usage('ai_skip', call_type, reason='no_key')
         return None
     messages = []
@@ -190,8 +194,10 @@ def deepseek(prompt, system=None, timeout=30, max_tokens=4096, call_type='genera
                       completion_tokens=usage.get('completion_tokens', 0))
             return result['choices'][0]['message']['content']
     except Exception as e:
-        print(f'DeepSeek error: {e}')
-        log_usage('ai_error', call_type, error=str(e)[:200])
+        msg = str(e)[:300]
+        _LAST_DS_ERROR = msg
+        print(f'DeepSeek error: {msg}')
+        log_usage('ai_error', call_type, error=msg)
         return None
 
 # ==================== Usage Tracking ====================
@@ -1601,6 +1607,31 @@ def unit_detail(unit_id):
         return fail(f'操作失败: {e}')
 
 # ==================== Routes: AI ====================
+@app.route('/api/debug/deepseek', methods=['GET'])
+def debug_deepseek():
+    """Diagnostic: test DeepSeek API connectivity and return detailed error"""
+    global _LAST_DS_ERROR
+    result = {
+        'key_configured': bool(DEEPSEEK_KEY),
+        'key_prefix': DEEPSEEK_KEY[:8] + '...' if len(DEEPSEEK_KEY) > 8 else (DEEPSEEK_KEY or '(empty)'),
+        'key_length': len(DEEPSEEK_KEY),
+        'api_url': DEEPSEEK_URL,
+        'last_error': _LAST_DS_ERROR,
+        'timeout': 30
+    }
+    # Try a simple API call
+    try:
+        prompt = 'Say "ok" in one word, no other text.'
+        resp = deepseek(prompt, timeout=15, max_tokens=10, call_type='general')
+        if resp is not None:
+            result['test_call'] = 'ok'
+            result['response'] = resp[:100]
+        else:
+            result['test_call'] = 'failed'
+    except Exception as e:
+        result['test_call'] = 'exception:' + str(e)[:200]
+    return ok(result)
+
 @app.route('/api/ai/check', methods=['POST'])
 def ai_check():
     try:
@@ -1619,7 +1650,8 @@ def ai_check():
         )
         result = deepseek(prompt, call_type='check')
         if result is None:
-            return ok([{'word': w, 'valid': True} for w in words], 'AI服务不可用，已跳过校验')
+            err = _LAST_DS_ERROR or '未知错误'
+            return ok([{'word': w, 'valid': True} for w in words], f'AI服务不可用({err})，已跳过校验')
 
         parsed = extract_json(result)
         if parsed and isinstance(parsed, list):
@@ -1648,7 +1680,8 @@ def ai_generate():
         )
         result = deepseek(prompt, timeout=60, call_type='generate')
         if result is None:
-            return fail('AI服务不可用，请检查API Key配置')
+            err = _LAST_DS_ERROR or '未知错误'
+            return fail(f'AI服务不可用: {err}')
 
         parsed = extract_json(result)
         if parsed and isinstance(parsed, list):
@@ -1727,7 +1760,8 @@ def ai_training():
         )
         result = deepseek(prompt, timeout=60, call_type='training')
         if result is None:
-            return fail('AI服务不可用')
+            err = _LAST_DS_ERROR or '未知错误'
+            return fail(f'AI服务不可用: {err}')
 
         parsed = extract_json(result)
         if parsed and isinstance(parsed, list):
@@ -1808,7 +1842,8 @@ def vocab_structure_route():
         grade = int(request.args.get('grade', 7))
         structured = get_structured_vocab(grade)
         if structured is None:
-            return fail('词库结构化失败，请检查AI服务配置或稍后重试')
+            err = _LAST_DS_ERROR or '未知错误'
+            return fail(f'词库结构化失败: {err}，请稍后重试')
         # Return summary (without full word lists for lighter payload)
         units_summary = []
         for unit in structured.get('units', []):
@@ -1839,7 +1874,8 @@ def vocab_init_structure_route():
         grade = int(data.get('grade', 7))
         result = init_structured_vocab(grade)
         if result is None:
-            return fail('AI服务不可用或返回格式异常')
+            err = _LAST_DS_ERROR or '未知错误'
+            return fail(f'AI服务不可用: {err}')
         # Save to COS
         structured = cos.get_json('config/grade_vocab_structured.json')
         if structured is None:
