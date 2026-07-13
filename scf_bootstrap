@@ -1,3 +1,3 @@
 #!/bin/bash
-export PYTHONPATH=/var/task/vendor:$PYTHONPATH
-/var/lang/python3/bin/python3 app.py
+export PYTHONPATH=/var/user/vendor:$PYTHONPATH
+exec python3 app.py
