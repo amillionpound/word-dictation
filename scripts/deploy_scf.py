@@ -160,6 +160,26 @@ def main():
         resp = client.UpdateFunctionCode(req)
         print(f"DEPLOY SUCCESS: RequestId={resp.RequestId}")
 
+        # Wait for function to become Active after code update
+        import time
+        def wait_active(client, cfg, label, max_retries=12):
+            for i in range(max_retries):
+                time.sleep(5)
+                try:
+                    check_req = scf_models.GetFunctionRequest()
+                    check_req.FunctionName = cfg["function_name"]
+                    check_req.Namespace = cfg["namespace"]
+                    check_resp = client.GetFunction(check_req)
+                    status = check_resp.Status
+                    print(f"  {label} check ({i+1}/{max_retries}): {status}")
+                    if status == "Active":
+                        return True
+                except Exception:
+                    pass
+            return False
+
+        wait_active(client, cfg, "post-code")
+
         # Trigger dependency installation (for requirements.txt)
         try:
             cfg_req = scf_models.UpdateFunctionConfigurationRequest()
@@ -171,21 +191,8 @@ def main():
         except Exception as e:
             print(f"Dependency install skipped: {e}")
 
-        # Wait for update to complete before publishing version
-        import time
-        for i in range(6):
-            time.sleep(5)
-            try:
-                check_req = scf_models.GetFunctionRequest()
-                check_req.FunctionName = cfg["function_name"]
-                check_req.Namespace = cfg["namespace"]
-                check_resp = client.GetFunction(check_req)
-                status = check_resp.Status
-                print(f"  Status check ({i+1}/6): {status}")
-                if status == "Active":
-                    break
-            except Exception:
-                pass
+        # Wait for dependency install to complete
+        wait_active(client, cfg, "post-dep")
 
         # Get function info AFTER update
         get_function_info(client, cfg, "(AFTER update)")
