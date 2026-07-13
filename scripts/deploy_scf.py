@@ -51,6 +51,55 @@ def load_config():
     return cfg
 
 
+def get_function_info(client, cfg, label=""):
+    """Print function details for debugging."""
+    try:
+        req = scf_models.GetFunctionRequest()
+        req.FunctionName = cfg["function_name"]
+        req.Namespace = cfg.get("namespace", "default")
+        resp = client.GetFunction(req)
+        print(f"--- Function Info {label} ---")
+        print(f"  Handler: {resp.Handler}")
+        print(f"  Runtime: {resp.Runtime}")
+        print(f"  Type: {resp.Type}")
+        print(f"  Status: {resp.Status}")
+        print(f"  CodeSize: {resp.CodeSize}")
+        print(f"  CodeSource: {resp.CodeSource}")
+        if hasattr(resp, 'Code') and resp.Code:
+            print(f"  Code.CosBucketName: {resp.Code.CosBucketName}")
+            print(f"  Code.CosObjectName: {resp.Code.CosObjectName}")
+        # List triggers
+        if hasattr(resp, 'Triggers') and resp.Triggers:
+            for t in resp.Triggers:
+                print(f"  Trigger: type={t.Type} name={t.TriggerName} qualifier={getattr(t, 'Qualifier', 'N/A')}")
+                if hasattr(t, 'TriggerDesc'):
+                    desc = t.TriggerDesc or ''
+                    # Print first 200 chars of trigger desc
+                    print(f"    Desc: {desc[:200]}")
+        else:
+            print("  Triggers: (none listed in GetFunction)")
+    except Exception as e:
+        print(f"  GetFunction failed: {e}")
+
+
+def list_triggers(client, cfg):
+    """List API Gateway triggers and their qualifiers."""
+    try:
+        req = scf_models.ListTriggersRequest()
+        req.FunctionName = cfg["function_name"]
+        req.Namespace = cfg.get("namespace", "default")
+        resp = client.ListTriggers(req)
+        print("--- Triggers ---")
+        if not resp.Triggers:
+            print("  No triggers found")
+        for t in resp.Triggers:
+            print(f"  Type: {t.Type} | Name: {t.TriggerName} | Qualifier: {getattr(t, 'Qualifier', 'N/A')} | Enable: {t.Enable}")
+            if hasattr(t, 'TriggerDesc'):
+                print(f"    Desc: {(t.TriggerDesc or '')[:300]}")
+    except Exception as e:
+        print(f"  ListTriggers failed: {e}")
+
+
 def main():
     secret_id = os.environ.get("TENCENT_SECRET_ID")
     secret_key = os.environ.get("TENCENT_SECRET_KEY")
@@ -81,6 +130,10 @@ def main():
         cred = credential.Credential(secret_id, secret_key)
         client = scf_client.ScfClient(cred, cfg["region"])
 
+        # Get function info BEFORE update
+        get_function_info(client, cfg, "(BEFORE update)")
+        list_triggers(client, cfg)
+
         # Update function code
         req = scf_models.UpdateFunctionCodeRequest()
         req.FunctionName = cfg["function_name"]
@@ -91,6 +144,9 @@ def main():
         resp = client.UpdateFunctionCode(req)
         print(f"DEPLOY SUCCESS: RequestId={resp.RequestId}")
 
+        # Get function info AFTER update
+        get_function_info(client, cfg, "(AFTER update)")
+
         # Publish a new version for stability
         try:
             ver_req = scf_models.PublishVersionRequest()
@@ -100,6 +156,9 @@ def main():
             print(f"Published version: {ver_resp.FunctionVersion}")
         except Exception as e:
             print(f"Version publish skipped: {e}")
+
+        # List triggers again after publish
+        list_triggers(client, cfg)
 
     except TencentCloudSDKException as e:
         print(f"DEPLOY FAILED: {e}")
