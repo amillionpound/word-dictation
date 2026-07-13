@@ -296,6 +296,7 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <div id="learn-words-area" class="mt8 hidden"></div>
 </div>
 </div>
+<div id="ctab-dict">
 <div class="card">
 <h3>开始听写</h3>
 <p class="muted sm mt8">选择单词单元，开始听写练习</p>
@@ -643,7 +644,11 @@ async function doEntryCodeLogin() {
 function enterApp() {
     document.getElementById('nav-logout').classList.remove('hidden');
     document.getElementById('nav-user').classList.remove('hidden');
-    document.getElementById('nav-user').textContent = S.family_name || '超管';
+    const userLabel = S.role === 'child' ? (S.child_name || '孩子')
+        : S.role === 'parent' ? (S.family_name || '家长')
+        : S.role === 'admin' ? '超管'
+        : (S.family_name || '超管');
+    document.getElementById('nav-user').textContent = userLabel;
     if (S.role === 'admin') { loadAdmin(); showView('admin'); }
     else if (S.role === 'parent') { loadParent(); showView('parent'); }
     else if (S.role === 'child') { loadChild(); showView('child'); }
