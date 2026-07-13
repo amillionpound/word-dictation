@@ -135,11 +135,15 @@ def main():
         list_triggers(client, cfg)
 
         # Update function code
+        # Note: Do NOT set Handler for HTTP-type (Web Function) — it uses a
+        # built-in web server and the handler field must remain empty.
         req = scf_models.UpdateFunctionCodeRequest()
         req.FunctionName = cfg["function_name"]
         req.Namespace = cfg["namespace"]
         req.ZipFile = zip_b64
-        req.Handler = cfg["handler"]
+        # Only set Handler for non-HTTP functions (event functions)
+        if cfg.get("set_handler", False):
+            req.Handler = cfg["handler"]
 
         resp = client.UpdateFunctionCode(req)
         print(f"DEPLOY SUCCESS: RequestId={resp.RequestId}")
