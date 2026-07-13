@@ -1,0 +1,7 @@
+{
+  "function_name": "ca9zcay6yh",
+  "namespace": "default",
+  "region": "ap-guangzhou",
+  "handler": "app.main_handler",
+  "files": ["app.py", "index.html"]
+}
