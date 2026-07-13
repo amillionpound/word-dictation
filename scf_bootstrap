@@ -1,2 +1,7 @@
 #!/bin/bash
+# Install Flask if not already available in the runtime
+/var/lang/python3/bin/python3 -c "import flask" 2>/dev/null || {
+  /var/lang/python3/bin/pip3 install flask -q -t /tmp/site-packages 2>/dev/null
+}
+export PYTHONPATH=/tmp/site-packages:$PYTHONPATH
 /var/lang/python3/bin/python3 app.py
