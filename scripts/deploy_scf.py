@@ -81,7 +81,33 @@ def main():
         cred = credential.Credential(secret_id, secret_key)
         client = scf_client.ScfClient(cred, cfg["region"])
 
+        # Debug: List all functions the sub-user can see
+        print("\n--- DEBUG: Listing functions ---")
+        try:
+            list_req = scf_models.ListFunctionsRequest()
+            list_req.Limit = 20
+            list_req.Namespace = cfg["namespace"]
+            list_resp = client.ListFunctions(list_req)
+            funcs = list_resp.Functions or []
+            print(f"Found {len(funcs)} functions in namespace '{cfg['namespace']}':")
+            for fn in funcs:
+                print(f"  - {fn.FunctionName} (namespace={fn.Namespace})")
+        except Exception as e:
+            print(f"ListFunctions failed: {e}")
+
+        # Debug: Try GetFunction
+        print(f"\n--- DEBUG: GetFunction '{cfg['function_name']}' ---")
+        try:
+            get_req = scf_models.GetFunctionRequest()
+            get_req.FunctionName = cfg["function_name"]
+            get_req.Namespace = cfg["namespace"]
+            get_resp = client.GetFunction(get_req)
+            print(f"Function found: {get_resp.FunctionName}, status={get_resp.Status}")
+        except Exception as e:
+            print(f"GetFunction failed: {e}")
+
         # Update function code
+        print(f"\n--- Deploying ---")
         req = scf_models.UpdateFunctionCodeRequest()
         req.FunctionName = cfg["function_name"]
         req.Namespace = cfg["namespace"]
