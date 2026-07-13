@@ -112,6 +112,21 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 .usage-table{width:100%;border-collapse:collapse;font-size:13px}
 .usage-table th{text-align:left;padding:8px;border-bottom:2px solid var(--bd);color:var(--muted)}
 .usage-table td{padding:6px 8px;border-bottom:1px solid var(--bd)}
+.motto{margin-top:10px;text-align:center}
+.motto-zh{font-size:16px;font-weight:600;color:var(--text)}
+.motto-en{font-size:13px;color:var(--muted);margin-top:2px;font-style:italic}
+.family-banner{background:var(--pri-l);color:var(--pri);border-radius:var(--r);padding:8px 12px;margin-bottom:10px;font-size:14px}
+.login-foot{margin-top:14px;font-size:12px}
+.qa-box{border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;margin-top:12px;background:var(--card)}
+.qa-box summary{cursor:pointer;font-weight:600;color:var(--pri);outline:none}
+.qa-answer{margin-top:8px;font-size:14px;line-height:1.6}
+.qa-q{margin-bottom:6px}
+.qa-a{color:var(--text)}
+.qa-err{color:var(--err)}
+.qa-loading{font-style:italic}
+.hash-out{font-family:Georgia,serif;font-size:13px;word-break:break-all;background:var(--bg);border-radius:6px;padding:8px;color:var(--text)}
+.tag-test{background:#FAEEDA;color:var(--warn)}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -128,7 +143,9 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <div id="view-login" class="view">
 <div class="login-box">
 <h2>单词听写系统</h2>
+<div id="login-motto" class="motto"></div>
 <div id="login-family-section">
+<div class="family-banner hidden" id="login-family-banner">当前家庭 · 家长：<b id="login-family-name">—</b> <span id="login-family-tag" class="tag tag-test hidden">测试家庭</span></div>
 <div class="role-tabs">
 <div class="role-tab active" data-role="parent" onclick="switchLoginRole('parent')">家长</div>
 <div class="role-tab" data-role="child" onclick="switchLoginRole('child')">孩子</div>
@@ -172,6 +189,15 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 </div>
 </div>
 </div>
+<div class="login-foot muted tc">单词听写系统 <span id="login-version"></span> · 学海无涯，砥砺前行</div>
+<details class="qa-box">
+  <summary>AI 小助手（英语学习问答）</summary>
+  <div class="col gap8 mt8">
+    <textarea id="login-qa-q" class="entry" rows="2" placeholder="问点英语学习的问题，比如：如何记单词更高效？"></textarea>
+    <button class="btn btn-sec btn-sm" id="login-qa-btn" onclick="askAI('login-qa-q','login-qa-a','login-qa-btn')">提问</button>
+    <div id="login-qa-a" class="qa-answer"></div>
+  </div>
+</details>
 </div>
 
 <!-- Admin Dashboard -->
@@ -208,6 +234,15 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <div class="card">
 <h3>系统信息</h3>
 <div id="sys-info" class="muted"></div>
+</div>
+<div class="card">
+  <h3>管理员密钥生成器</h3>
+  <p class="muted sm mt8">输入明文，生成 SHA-256 密文，复制后填入 SCF 环境变量 ADMIN_PWD（替换原密钥）。</p>
+  <div class="col gap8 mt8">
+    <input id="admin-pwd-plain" type="text" placeholder="输入管理员明文密码">
+    <button class="btn btn-primary btn-sm" onclick="genAdminHash()">生成密文</button>
+    <div id="admin-pwd-hash" class="qa-answer hidden"></div>
+  </div>
 </div>
 </div>
 <div id="atab-usage" class="hidden">
@@ -275,8 +310,9 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <div class="col gap8 mt8">
 <input id="old-pwd" type="password" placeholder="原密码">
 <input id="new-pwd" type="password" placeholder="新密码">
-<button class="btn btn-primary btn-block" onclick="changePwd()">修改密码</button>
+<button class="btn btn-primary btn-block" id="btn-change-pwd" onclick="changePwd()">修改密码</button>
 </div>
+<p id="test-pwd-hint" class="muted sm mt8 hidden" style="color:var(--err)">这是测试家庭，不支持自助修改密码（仅超管可改）。</p>
 </div>
 </div>
 </div>
@@ -284,16 +320,25 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <!-- Child Dashboard -->
 <div id="view-child" class="view hidden">
 <div class="tabs">
-<div class="tab active" data-ctab="learn" onclick="switchChildTab('learn')">学习</div>
-<div class="tab" data-ctab="dict" onclick="switchChildTab('dict')">听写</div>
-<div class="tab" data-ctab="records" onclick="switchChildTab('records')">成绩</div>
+    <div class="tab active" data-ctab="learn" onclick="switchChildTab('learn')">学习</div>
+    <div class="tab" data-ctab="dict" onclick="switchChildTab('dict')">听写</div>
+    <div class="tab" data-ctab="records" onclick="switchChildTab('records')">成绩</div>
 </div>
 <div id="ctab-learn">
 <div class="card">
 <h3>单词学习</h3>
 <p class="muted sm mt8">选择单元，先学习单词再听写</p>
+<div id="learn-motto" class="motto"></div>
 <div id="learn-unit-list" class="mt8"></div>
 <div id="learn-words-area" class="mt8 hidden"></div>
+<div class="qa-box mt12">
+  <div class="row gap8"><b>问问 AI</b><span class="muted sm">关于正在学的单词 / 句子</span></div>
+  <div class="col gap8 mt8">
+    <textarea id="learn-qa-q" class="entry" rows="2" placeholder="比如：这个单词怎么记？或 造个句子"></textarea>
+    <button class="btn btn-sec btn-sm" id="learn-qa-btn" onclick="askAI('learn-qa-q','learn-qa-a','learn-qa-btn')">提问</button>
+    <div id="learn-qa-a" class="qa-answer"></div>
+  </div>
+</div>
 </div>
 </div>
 <div id="ctab-dict" class="hidden">
@@ -437,7 +482,7 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <script>
 // ==================== State ====================
 let S = {
-    role: null, family_id: null, family_name: null,
+    role: null, family_id: null, family_name: null, is_test: false,
     child_id: null, child_name: null, grade: 7,
     loginRole: 'parent',
     config: { default_replay_limit: 5 },
@@ -448,6 +493,38 @@ let S = {
     selectedLessons: new Set(),
     dictChildId: null
 };
+
+// ==================== Version & Mottos ====================
+const APP_VERSION = '1.1.0';
+const MOTTOES = [
+  { zh: '日积跬步，以致千里', en: 'A thousand-mile journey is made of single steps, gathered day by day.' },
+  { zh: '疾风知劲草',         en: 'Only the driving wind reveals the resilient grass.' },
+  { zh: '熟能生巧',           en: 'Practice breeds mastery.' },
+  { zh: '温故而知新',         en: 'By revisiting the old, we come to know the new.' },
+  { zh: '书山有路勤为径，学海无涯苦作舟', en: 'Diligence is the path through the mountain of books; hard work the boat across the sea of learning.' },
+  { zh: '不积小流，无以成江海', en: 'Without gathering small streams, no river or sea can be formed.' },
+  { zh: '业精于勤，荒于嬉',   en: 'Mastery is born of diligence and lost to distraction.' },
+  { zh: '锲而不舍，金石可镂', en: 'Carve without cease, and even metal and stone can be engraved.' },
+  { zh: '学而不思则罔，思而不学则殆', en: 'To learn without thought is to be lost; to think without learning is to be in peril.' },
+  { zh: '绳锯木断，水滴石穿', en: 'A cord saws through wood; a single drop wears through stone.' },
+  { zh: '宝剑锋从磨砺出，梅花香自苦寒来', en: 'A sword’s edge is honed by grinding; a plum’s fragrance comes from the cold.' },
+  { zh: '少壮不努力，老大徒伤悲', en: 'If youth will not strive, age will mourn in vain.' }
+];
+function currentMotto() {
+  // 30 分钟一个时间窗口，相邻窗口用哈希取模得到稳定且看似随机的索引；
+  // 页面加载时只算一次，会话内不刷新（除非离开页面进入新的时间窗口）。
+  const bucket = Math.floor(Date.now() / (30 * 60 * 1000));
+  let h = 2166136261;
+  const s = String(bucket);
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return MOTTOES[Math.abs(h) % MOTTOES.length];
+}
+function renderMotto(elId) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const m = currentMotto();
+  el.innerHTML = `<div class="motto-zh">${esc(m.zh)}</div><div class="motto-en">${esc(m.en)}</div>`;
+}
 
 // ==================== API ====================
 async function api(path, data = {}, method = 'POST') {
@@ -510,11 +587,6 @@ function speakWithWebTTS(word) {
     if (v) u.voice = v;
     speechSynthesis.speak(u);
 }
-    u.rate = 0.9;
-    const v = ttsVoices.find(v => v.lang === 'en-GB') || ttsVoices.find(v => v.lang.startsWith('en'));
-    if (v) u.voice = v;
-    speechSynthesis.speak(u);
-}
 
 // ==================== Utils ====================
 function showView(name) {
@@ -547,6 +619,46 @@ function esc(s) {
     return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
 
+// ==================== AI 问答 / 密钥生成 ====================
+async function askAI(qId, aId, btnId) {
+    const qEl = document.getElementById(qId);
+    const aEl = document.getElementById(aId);
+    const btn = document.getElementById(btnId);
+    const q = (qEl.value || '').trim();
+    if (!q) { showToast('请输入问题', 'err'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = '思考中…'; }
+    aEl.innerHTML = '<div class="qa-loading muted">AI 正在思考…</div>';
+    try {
+        const r = await api('ai/qa', { question: q });
+        if (r.code === 0 && r.data) {
+            aEl.innerHTML = `<div class="qa-q"><b>问：</b>${esc(r.data.question)}</div><div class="qa-a"><b>答：</b>${esc(r.data.answer).split(String.fromCharCode(10)).join('<br>')}</div>`;
+        } else {
+            aEl.innerHTML = `<div class="qa-err">${esc(r.msg || '问答失败')}</div>`;
+        }
+    } catch (e) {
+        aEl.innerHTML = `<div class="qa-err">网络错误: ${esc(e.message)}</div>`;
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '提问'; }
+    }
+}
+async function genAdminHash() {
+    const plain = document.getElementById('admin-pwd-plain').value;
+    if (!plain) { showToast('请输入明文', 'err'); return; }
+    try {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain));
+        const hex = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+        const el = document.getElementById('admin-pwd-hash');
+        el.classList.remove('hidden');
+        el.innerHTML = `<div class="hash-out">${hex}</div><button class="btn btn-sec btn-sm mt8" onclick="copyText('${hex}')">复制密文</button>`;
+        showToast('已生成 SHA-256 密文', 'ok');
+    } catch (e) {
+        showToast('生成失败：' + e.message, 'err');
+    }
+}
+function copyText(t) {
+    navigator.clipboard.writeText(t).then(() => showToast('已复制', 'ok'), () => showToast(t, ''));
+}
+
 // ==================== Init ====================
 function init() {
     initTTS();
@@ -561,6 +673,22 @@ function init() {
     } else {
         document.getElementById('login-family-section').classList.add('hidden');
         document.getElementById('login-admin-section').classList.remove('hidden');
+    }
+
+    // 版本号、励志短语（登录页）
+    renderMotto('login-motto');
+    renderMotto('learn-motto');
+    const verEl = document.getElementById('login-version');
+    if (verEl) verEl.textContent = 'v' + APP_VERSION;
+    if (fid) {
+        document.getElementById('login-family-banner').classList.remove('hidden');
+        apiGet('family-public/' + encodeURIComponent(fid)).then(r => {
+            if (r.code === 0 && r.data) {
+                const nm = document.getElementById('login-family-name');
+                if (nm) nm.textContent = r.data.parent_name || '家长';
+                document.getElementById('login-family-tag').classList.toggle('hidden', !r.data.is_test);
+            }
+        }).catch(() => {});
     }
 
     // Auto-login from localStorage
@@ -623,6 +751,7 @@ async function doLogin(role) {
     S.role = r.data.role;
     if (r.data.family_id) S.family_id = r.data.family_id;
     S.family_name = r.data.family_name || '';
+    S.is_test = !!r.data.is_test;
     if (r.data.child_id) { S.child_id = r.data.child_id; S.child_name = r.data.child_name; S.grade = r.data.grade || 7; }
 
     localStorage.setItem('wdb_session', JSON.stringify({
@@ -660,7 +789,7 @@ function enterApp() {
 
 function logout() {
     localStorage.removeItem('wdb_session');
-    S = { role: null, family_id: S.family_id, family_name: null, loginRole: 'parent',
+    S = { role: null, family_id: S.family_id, family_name: null, loginRole: 'parent', is_test: false,
           config: { default_replay_limit: 5 }, entryCode: null, entrySession: null,
           checkedWords: [], generatedWords: [],
           dict: { words: [], idx: 0, mode: 'blind', replays: 0, maxReplay: 5 },
@@ -696,14 +825,15 @@ async function loadFamilies() {
     el.innerHTML = r.data.map(f => `
         <div class="list-item">
             <div class="li-main">
-                <div class="li-title">${esc(f.family_name)}</div>
+                <div class="li-title">${esc(f.family_name)}${f.is_test ? ' <span class="tag tag-test">测试</span>' : ''}</div>
                 <div class="li-sub">ID: ${f.family_id} · ${fmtDate(f.created_at)}</div>
             </div>
             <div class="row gap4">
                 <button class="btn btn-sec btn-sm" onclick="copyFamilyUrl('${f.family_id}')">复制链接</button>
                 <button class="btn btn-sec btn-sm" onclick="adminChangePwd('${f.family_id}', '${esc(f.family_name)}')">改密码</button>
-                <button class="btn btn-err btn-sm" onclick="adminDeleteFamily('${f.family_id}', '${esc(f.family_name)}')">删除</button>
+                ${f.is_test ? '' : `<button class="btn btn-err btn-sm" onclick="adminDeleteFamily('${f.family_id}', '${esc(f.family_name)}')">删除</button>`}
             </div>
+            ${f.is_test ? '<div class="li-sub" style="color:var(--warn)">固定测试家庭 · 不可删除</div>' : ''}
         </div>
     `).join('');
 }
@@ -751,7 +881,8 @@ async function loadConfig() {
         S.config = r.data;
         document.getElementById('cfg-replay').value = r.data.default_replay_limit || 5;
         document.getElementById('cfg-replay-p').value = r.data.default_replay_limit || 5;
-        document.getElementById('sys-info').innerHTML = `词库状态: ${r.data.created_at ? '已初始化' : '未初始化'}<br>TTS: 浏览器内置 (en-GB)`;
+        document.getElementById('sys-info').innerHTML = `词库状态: ${r.data.created_at ? '已初始化' : '未初始化'}<br>TTS: 浏览器内置 (en-GB)<br>前端版本: v${APP_VERSION}`;
+        apiGet('version').then(r2 => { if (r2.code === 0) { const v = document.getElementById('sys-info'); if (v) v.innerHTML += `<br>后端版本: v${esc(r2.data.version)}`; } }).catch(() => {});
     }
 }
 
@@ -771,7 +902,7 @@ async function loadUsage() {
     const d = r.data;
     const calls = d.ai_calls || {};
     const totalCalls = Object.values(calls).reduce((a,b) => a+b, 0);
-    const typeLabels = {check:'拼写校验', generate:'内容生成', training:'特训生成', init_vocab:'词库初始化', general:'其他'};
+    const typeLabels = {check:'拼写校验', generate:'内容生成', training:'特训生成', init_vocab:'词库初始化', qa:'智能问答', general:'其他'};
     let html = '';
 
     // Summary cards
@@ -830,6 +961,13 @@ function switchParentTab(tab) {
     if (tab === 'children') loadChildren();
     if (tab === 'units') loadUnits();
     if (tab === 'records') loadRecords();
+    if (tab === 'settings') {
+        const isTest = !!S.is_test;
+        const btn = document.getElementById('btn-change-pwd');
+        const hint = document.getElementById('test-pwd-hint');
+        if (btn) { btn.disabled = isTest; btn.textContent = isTest ? '修改密码（已禁用）' : '修改密码'; }
+        if (hint) hint.classList.toggle('hidden', !isTest);
+    }
 }
 
 async function loadParent() {
@@ -1189,7 +1327,7 @@ async function retest(rid, shuffle = false) {
     if (r.code !== 0) { showToast(r.msg, 'err'); return; }
     const rec = r.data.find(r => r.record_id === rid);
     if (!rec) { showToast('记录不存在', 'err'); return; }
-
+    
     let words = [...(rec.words || [])];
     if (shuffle && words.length > 1) {
         for (let i = words.length - 1; i > 0; i--) {
@@ -1197,6 +1335,8 @@ async function retest(rid, shuffle = false) {
             [words[i], words[j]] = [words[j], words[i]];
         }
     }
+
+    // Start dictation with the same words
     S.dict.words = words;
     S.dict.idx = 0;
     S.dict.mode = rec.mode || 'blind';
@@ -1208,7 +1348,6 @@ async function retest(rid, shuffle = false) {
     showView('dictation');
     renderDictation();
     showToast(shuffle ? '已打乱顺序，开始新听写' : '按原顺序重新听写', 'ok');
-}
 }
 
 async function changePwd() {
@@ -1412,6 +1551,7 @@ async function loadChildRecords() {
         el.innerHTML = '<div class="empty"><p>暂无成绩记录</p></div>';
         return;
     }
+    // Store records for replay
     S.records = r.data;
     el.innerHTML = r.data.map((rec, idx) => {
         const cls = rec.percentage >= 60 ? 'score-pass' : 'score-fail';
@@ -1432,22 +1572,30 @@ async function loadChildRecords() {
 function replayDictation(recordIdx, shuffle) {
     const rec = S.records[recordIdx];
     if (!rec || !rec.words || !rec.words.length) { showToast('该记录没有单词数据', 'err'); return; }
-
+    
     let words = [...rec.words];
     if (shuffle) {
+        // Fisher-Yates shuffle
         for (let i = words.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [words[i], words[j]] = [words[j], words[i]];
         }
     }
+
+    // Setup dictation state for child replay
     S.dict = {
-        words: words, idx: 0,
+        words: words,
+        idx: 0,
         mode: rec.mode === 'reading' ? 'reading' : 'blind',
-        replays: 0, maxReplay: S.config.default_replay_limit || 5,
+        replays: 0,
+        maxReplay: S.config.default_replay_limit || 5,
         answers: [],
+        sourceRecordId: shuffle ? null : rec.record_id, // null if shuffled = new record
     };
     S.dictChildId = S.child_id;
     S.dictChildName = S.child_name;
+
+    // Switch to dictation view within child dashboard
     switchChildTab('dict');
     showView('dictation');
     renderDictation();

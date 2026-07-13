@@ -41,6 +41,7 @@ from flask import Flask, request, jsonify, Response
 ADMIN_PWD_CFG = os.environ.get('ADMIN_PWD', 'admin123')
 _is_hash = len(ADMIN_PWD_CFG) == 64 and all(c in '0123456789abcdef' for c in ADMIN_PWD_CFG.lower())
 ADMIN_PWD_VERIFY = ADMIN_PWD_CFG.lower() if _is_hash else hashlib.sha256(ADMIN_PWD_CFG.encode('utf-8')).hexdigest()
+APP_VERSION = '1.1.0'  # 前端/后端版本号，发版时同步修改（app.py + 前端 const APP_VERSION）
 DEEPSEEK_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
 DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions'
 COS_SID = os.environ.get('COS_SECRET_ID', '')
@@ -211,7 +212,7 @@ def log_usage(event, sub_type, **extra):
     try:
         if _usage_cache is None:
             _usage_cache = cos.get_json('config/usage_stats.json') or {
-                'ai_calls': {'check': 0, 'generate': 0, 'training': 0, 'init_vocab': 0, 'general': 0},
+                'ai_calls': {'check': 0, 'generate': 0, 'training': 0, 'init_vocab': 0, 'qa': 0, 'general': 0},
                 'ai_errors': 0,
                 'ai_skips': 0,
                 'total_prompt_tokens': 0,
@@ -305,6 +306,53 @@ def check_parent_pwd_global(pwd_hash, exclude_family=None):
         if users and users.get('parent', {}).get('password_hash') == pwd_hash:
             return False
     return True
+
+# ==================== Fixed Test Family ====================
+# 固定测试家庭：家长「兴小智」，密码 111111；孩子志远、凌云（密码同为 111111）。
+# 该家庭由超管管理（可改密），但不可被删除，且家长自助改密被禁用。
+TEST_FAMILY_ID = 'test0001'
+TEST_FAMILY_PWD = '111111'
+
+def ensure_test_family():
+    """启动时确保固定测试家庭存在（幂等，不删除任何已有数据）。"""
+    try:
+        families = get_families()
+        if any(f.get('family_id') == TEST_FAMILY_ID for f in families):
+            return
+        # index 缺失但 users 已存在 -> 仅补 index 条目
+        if get_users(TEST_FAMILY_ID):
+            families.append({
+                'family_id': TEST_FAMILY_ID,
+                'family_name': '兴小智的家庭',
+                'is_test': True,
+                'created_at': int(time.time())
+            })
+            save_families(families)
+            return
+        users = {
+            'family_name': '兴小智的家庭',
+            'parent': {
+                'name': '兴小智',
+                'password_hash': hash_pwd(TEST_FAMILY_PWD),
+                'created_at': int(time.time())
+            },
+            'children': [
+                {'child_id': gen_id(), 'name': '志远', 'grade': 7,
+                 'password_hash': hash_pwd(TEST_FAMILY_PWD), 'created_at': int(time.time())},
+                {'child_id': gen_id(), 'name': '凌云', 'grade': 7,
+                 'password_hash': hash_pwd(TEST_FAMILY_PWD), 'created_at': int(time.time())}
+            ]
+        }
+        save_users(TEST_FAMILY_ID, users)
+        families.append({
+            'family_id': TEST_FAMILY_ID,
+            'family_name': '兴小智的家庭',
+            'is_test': True,
+            'created_at': int(time.time())
+        })
+        save_families(families)
+    except Exception:
+        pass  # 尽力而为，绝不阻塞启动
 
 # ==================== Grade Vocabulary ====================
 BASIC_VOCAB = {
@@ -1066,6 +1114,10 @@ def index():
             return Response(f.read(), mimetype='text/html')
     return 'index.html not found', 404
 
+@app.route('/api/version')
+def version_route():
+    return ok({'version': APP_VERSION})
+
 # ==================== Routes: Auth ====================
 @app.route('/api/login', methods=['POST'])
 def login():
@@ -1090,10 +1142,12 @@ def login():
         if role == 'parent':
             parent = users.get('parent', {})
             if hash_pwd(password) == parent.get('password_hash'):
+                fam = next((f for f in get_families() if f['family_id'] == family_id), {})
                 return ok({
                     'role': 'parent', 'family_id': family_id,
                     'family_name': users.get('family_name', ''),
-                    'parent_name': parent.get('name', '家长')
+                    'parent_name': parent.get('name', '家长'),
+                    'is_test': bool(fam.get('is_test', False))
                 })
             return fail('密码错误')
 
@@ -1130,6 +1184,9 @@ def change_password():
             return fail('家庭不存在')
 
         if user_type == 'parent':
+            fam = next((f for f in get_families() if f['family_id'] == family_id), {})
+            if fam.get('is_test'):
+                return fail('测试家庭不支持自助修改密码（仅超管可改）')
             parent = users.get('parent', {})
             if hash_pwd(old_pwd) != parent.get('password_hash'):
                 return fail('原密码错误')
@@ -1221,6 +1278,8 @@ def family_manage_route(family_id):
             return fail('家庭不存在')
 
         if request.method == 'DELETE':
+            if fam.get('is_test'):
+                return fail('测试家庭不可删除')
             # Remove from families index
             families = [f for f in families if f['family_id'] != family_id]
             save_families(families)
@@ -1266,6 +1325,23 @@ def family_manage_route(family_id):
         return ok(None, '密码已更新')
     except Exception as e:
         return fail(f'操作失败: {e}')
+
+@app.route('/api/family-public/<family_id>', methods=['GET'])
+def family_public(family_id):
+    """公开的家庭信息（无需登录），供登录页展示家长名称与测试标识。"""
+    try:
+        users = get_users(family_id)
+        if not users:
+            return fail('家庭不存在')
+        fam = next((f for f in get_families() if f['family_id'] == family_id), {})
+        return ok({
+            'family_id': family_id,
+            'family_name': users.get('family_name', ''),
+            'parent_name': users.get('parent', {}).get('name', '家长'),
+            'is_test': bool(fam.get('is_test', False))
+        })
+    except Exception as e:
+        return fail(f'查询失败: {e}')
 
 @app.route('/api/config', methods=['GET', 'POST'])
 def config_route():
@@ -1831,6 +1907,33 @@ def ai_training():
     except Exception as e:
         return fail(f'生成失败: {e}')
 
+@app.route('/api/ai/qa', methods=['POST'])
+def ai_qa():
+    """英语学习智能问答：复用 deepseek()，限定英语学习范围，先复述问题再解答。"""
+    try:
+        data = request.get_json() or {}
+        question = (data.get('question') or '').strip()
+        if not question:
+            return fail('请输入问题')
+        if len(question) > 500:
+            return fail('问题过长（最多500字）')
+        system = (
+            '你是面向初中生的英语助学小助手。'
+            '你只回答与英语单词、短语、句子、语法、发音、记忆方法、学习计划相关的问题。'
+            '回答规则：\n'
+            '1. 先用一句话复述用户的问题（例如："你问的是：……"），帮助用户确认原问题；\n'
+            '2. 再给出简洁、准确、适合初中生的解答，尽量举例；\n'
+            '3. 如果用户的问题与英语学习无关，礼貌说明你只能帮助英语学习相关的问题，并给出引导。\n'
+            '中文解答为主，英文单词/例句照写。'
+        )
+        answer = deepseek('用户问题：' + question, system=system, timeout=40, call_type='qa')
+        if answer is None:
+            err = _LAST_DS_ERROR or '未知错误'
+            return fail(f'AI服务暂不可用({err})，请稍后再试')
+        return ok({'question': question, 'answer': answer})
+    except Exception as e:
+        return fail(f'问答失败: {e}')
+
 # ==================== Routes: Records ====================
 @app.route('/api/records', methods=['GET', 'POST'])
 def records_route():
@@ -1976,6 +2079,9 @@ def debug_cos():
         # Cleanup
         cos._req('DELETE', test_key)
     return jsonify(info)
+
+# 冷启动时确保固定测试家庭存在（幂等）
+ensure_test_family()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9000, debug=False)
