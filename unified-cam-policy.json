@@ -1,0 +1,29 @@
+{
+  "version": "2.0",
+  "statement": [
+    {
+      "effect": "allow",
+      "action": [
+        "cos:PutObject",
+        "cos:PostObject",
+        "cos:GetObject",
+        "cos:HeadObject",
+        "cos:DeleteObject"
+      ],
+      "resource": [
+        "qcs::cos::uid/1256784020:*"
+      ]
+    },
+    {
+      "effect": "allow",
+      "action": [
+        "scf:UpdateFunctionCode",
+        "scf:PublishVersion",
+        "scf:GetFunction"
+      ],
+      "resource": [
+        "qcs::scf::uid/1256784020:*"
+      ]
+    }
+  ]
+}
