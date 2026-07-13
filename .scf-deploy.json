@@ -3,5 +3,6 @@
   "namespace": "default",
   "region": "ap-guangzhou",
   "handler": "app.main_handler",
+  "access_url": "https://1256784020-ca9zcay6yh.ap-guangzhou.tencentscf.com",
   "files": ["app.py", "index.html"]
 }
