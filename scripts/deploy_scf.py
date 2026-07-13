@@ -20,6 +20,7 @@ Required env vars (from GitHub Secrets):
 import base64
 import json
 import os
+import stat
 import sys
 import zipfile
 
@@ -115,8 +116,19 @@ def main():
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for f in cfg["files"]:
             if os.path.exists(f):
-                z.write(f)
-                print(f"  Added: {f}")
+                if f == "scf_bootstrap":
+                    # scf_bootstrap needs execute permission (0o755)
+                    # Windows zip doesn't set Unix perms, so set explicitly
+                    with open(f, "rb") as fh:
+                        data = fh.read()
+                    info = zipfile.ZipInfo(f)
+                    info.external_attr = (stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH) << 16
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    z.writestr(info, data)
+                    print(f"  Added: {f} (chmod 755)")
+                else:
+                    z.write(f)
+                    print(f"  Added: {f}")
             else:
                 print(f"  WARNING: {f} not found, skipping")
 
