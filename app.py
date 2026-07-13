@@ -59,7 +59,7 @@ app = Flask(__name__)
 @app.after_request
 def _cors(resp):
     resp.headers['Access-Control-Allow-Origin'] = '*'
-    resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, DELETE, OPTIONS'
+    resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
     return resp
 
