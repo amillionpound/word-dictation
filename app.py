@@ -12,6 +12,8 @@ _vendor = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vendor')
 if not os.path.isdir(_vendor):
     _vendor = os.path.join(os.getcwd(), 'vendor')
 if not os.path.isdir(_vendor):
+    _vendor = os.path.join('/var/user', 'vendor')
+if not os.path.isdir(_vendor):
     _vendor = os.path.join('/var/task', 'vendor')
 if os.path.isdir(_vendor):
     sys.path.insert(0, _vendor)

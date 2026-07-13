@@ -192,6 +192,20 @@ def main():
 
         wait_active("post-code")
 
+        # Update runtime if specified (e.g., upgrade from Python36 to Python39)
+        desired_runtime = cfg.get("runtime")
+        if desired_runtime:
+            try:
+                cfg_req = scf_models.UpdateFunctionConfigurationRequest()
+                cfg_req.FunctionName = cfg["function_name"]
+                cfg_req.Namespace = cfg["namespace"]
+                cfg_req.Runtime = desired_runtime
+                cfg_resp = client.UpdateFunctionConfiguration(cfg_req)
+                print(f"Runtime updated to {desired_runtime}: RequestId={cfg_resp.RequestId}")
+                wait_active("post-runtime")
+            except Exception as e:
+                print(f"Runtime update skipped: {e}")
+
         get_function_info(client, cfg, "(AFTER update)")
 
         # Publish a new version

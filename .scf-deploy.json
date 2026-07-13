@@ -4,6 +4,7 @@
   "region": "ap-guangzhou",
   "handler": "app.main_handler",
   "access_url": "https://1256784020-ca9zcay6yh.ap-guangzhou.tencentscf.com",
-  "files": ["app.py", "index.html", "scf_bootstrap"],
+  "runtime": "Python3.10",
+  "files": ["app.py", "index.html"],
   "deps": ["flask<2.0", "Werkzeug<2.0", "Jinja2<3.0", "itsdangerous<2.0", "click<8.0", "MarkupSafe<2.0"]
 }

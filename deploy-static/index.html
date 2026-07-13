@@ -441,9 +441,10 @@ let S = {
 };
 
 // ==================== API ====================
+const API_BASE = 'https://1256784020-ca9zcay6yh.ap-guangzhou.tencentscf.com';
 async function api(path, data = {}) {
     try {
-        const resp = await fetch('/api/' + path, {
+        const resp = await fetch(API_BASE + '/api/' + path, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
@@ -455,7 +456,7 @@ async function api(path, data = {}) {
 }
 async function apiGet(path) {
     try {
-        const resp = await fetch('/api/' + path);
+        const resp = await fetch(API_BASE + '/api/' + path);
         return await resp.json();
     } catch (e) {
         return { code: -1, msg: '网络错误: ' + e.message };
@@ -463,7 +464,7 @@ async function apiGet(path) {
 }
 async function apiDel(path) {
     try {
-        const resp = await fetch('/api/' + path, { method: 'DELETE' });
+        const resp = await fetch(API_BASE + '/api/' + path, { method: 'DELETE' });
         return await resp.json();
     } catch (e) {
         return { code: -1, msg: '网络错误: ' + e.message };
@@ -1538,7 +1539,7 @@ async function submitWords() {
 // Release session on page close
 window.addEventListener('beforeunload', () => {
     if (S.entryCode) {
-        navigator.sendBeacon('/api/session/release', JSON.stringify({ code: S.entryCode }));
+        navigator.sendBeacon(API_BASE + '/api/session/release', JSON.stringify({ code: S.entryCode }));
     }
 });
 
