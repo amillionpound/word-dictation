@@ -648,7 +648,11 @@ async function doEntryCodeLogin() {
 function enterApp() {
     document.getElementById('nav-logout').classList.remove('hidden');
     document.getElementById('nav-user').classList.remove('hidden');
-    document.getElementById('nav-user').textContent = S.family_name || '超管';
+    const userLabel = S.role === 'child' ? (S.child_name || '孩子')
+        : S.role === 'parent' ? (S.family_name || '家长')
+        : S.role === 'admin' ? '超管'
+        : (S.family_name || '超管');
+    document.getElementById('nav-user').textContent = userLabel;
     if (S.role === 'admin') { loadAdmin(); showView('admin'); }
     else if (S.role === 'parent') { loadParent(); showView('parent'); }
     else if (S.role === 'child') { loadChild(); showView('child'); }
