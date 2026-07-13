@@ -17,13 +17,21 @@
     {
       "effect": "allow",
       "action": [
-        "scf:UpdateFunctionCode",
-        "scf:PublishVersion",
-        "scf:GetFunction",
         "scf:ListFunctions"
       ],
       "resource": [
-        "qcs::scf:::uin/100005778049:namespace/default/function/*"
+        "*"
+      ]
+    },
+    {
+      "effect": "allow",
+      "action": [
+        "scf:UpdateFunctionCode",
+        "scf:PublishVersion",
+        "scf:GetFunction"
+      ],
+      "resource": [
+        "qcs::scf::uin/100005778049:namespace/default/function/*"
       ]
     }
   ]
