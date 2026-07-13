@@ -22,7 +22,7 @@
         "scf:GetFunction"
       ],
       "resource": [
-        "qcs::scf::uid/1256784020:*"
+        "qcs::scf::uid/1256784020:namespace/default/function/*"
       ]
     }
   ]
