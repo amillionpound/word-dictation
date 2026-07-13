@@ -26,11 +26,12 @@ import hmac
 import urllib.request
 import urllib.parse
 import urllib.error
-import ssl
+try:
+    import ssl
+    _SSL_CTX = ssl.create_default_context()
+except (ImportError, OSError):
+    _SSL_CTX = None
 from flask import Flask, request, jsonify, Response
-
-# SSL context for HTTPS requests (SCF Python 3.6 needs explicit ssl import)
-_SSL_CTX = ssl.create_default_context()
 
 # ==================== Configuration ====================
 # ADMIN_PWD can be either plaintext or SHA256 hash (64 hex chars).
@@ -46,6 +47,7 @@ COS_BUCKET = os.environ.get('COS_BUCKET', 'kb-efm-analytics')
 COS_REGION = os.environ.get('COS_REGION', 'ap-guangzhou')
 COS_PREFIX = 'vocab-buddy/'
 COS_HOST = f'{COS_BUCKET}.cos.{COS_REGION}.myqcloud.com'
+COS_SCHEME = 'https' if _SSL_CTX else 'http'
 
 app = Flask(__name__)
 
@@ -81,7 +83,7 @@ class COSClient:
 
     def _req(self, method, key, data=None):
         uri = f'/{COS_PREFIX}{key}'
-        url = f'https://{COS_HOST}{uri}'
+        url = f'{COS_SCHEME}://{COS_HOST}{uri}'
         headers = {'Host': COS_HOST, 'Authorization': self._sign(method, uri)}
         if data is not None:
             if isinstance(data, (dict, list)):
@@ -91,7 +93,10 @@ class COSClient:
             headers['Content-Type'] = 'application/json'
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=30, context=_SSL_CTX) as resp:
+            kwargs = {'timeout': 30}
+            if _SSL_CTX:
+                kwargs['context'] = _SSL_CTX
+            with urllib.request.urlopen(req, **kwargs) as resp:
                 return resp.status, resp.read()
         except urllib.error.HTTPError as e:
             return e.code, e.read()
@@ -174,7 +179,10 @@ def deepseek(prompt, system=None, timeout=30, max_tokens=4096, call_type='genera
         method='POST'
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout, context=_SSL_CTX) as resp:
+        _kw = {'timeout': timeout}
+        if _SSL_CTX:
+            _kw['context'] = _SSL_CTX
+        with urllib.request.urlopen(req, **_kw) as resp:
             result = json.loads(resp.read().decode('utf-8'))
             usage = result.get('usage', {})
             log_usage('ai_call', call_type,
