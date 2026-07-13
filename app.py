@@ -26,7 +26,11 @@ import hmac
 import urllib.request
 import urllib.parse
 import urllib.error
+import ssl
 from flask import Flask, request, jsonify, Response
+
+# SSL context for HTTPS requests (SCF Python 3.6 needs explicit ssl import)
+_SSL_CTX = ssl.create_default_context()
 
 # ==================== Configuration ====================
 # ADMIN_PWD can be either plaintext or SHA256 hash (64 hex chars).
@@ -87,7 +91,7 @@ class COSClient:
             headers['Content-Type'] = 'application/json'
         req = urllib.request.Request(url, data=data, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=30, context=_SSL_CTX) as resp:
                 return resp.status, resp.read()
         except urllib.error.HTTPError as e:
             return e.code, e.read()
@@ -170,7 +174,7 @@ def deepseek(prompt, system=None, timeout=30, max_tokens=4096, call_type='genera
         method='POST'
     )
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
+        with urllib.request.urlopen(req, timeout=timeout, context=_SSL_CTX) as resp:
             result = json.loads(resp.read().decode('utf-8'))
             usage = result.get('usage', {})
             log_usage('ai_call', call_type,
@@ -246,13 +250,13 @@ def get_families():
     return cos.get_json('families_index.json', [])
 
 def save_families(data):
-    cos.put_json('families_index.json', data)
+    return cos.put_json('families_index.json', data)
 
 def get_users(family_id):
     return cos.get_json(f'families/{family_id}/users.json', None)
 
 def save_users(family_id, data):
-    cos.put_json(f'families/{family_id}/users.json', data)
+    return cos.put_json(f'families/{family_id}/users.json', data)
 
 def get_units(family_id):
     return cos.get_json(f'families/{family_id}/units.json', [])
@@ -1186,7 +1190,8 @@ def families_route():
             },
             'children': []
         }
-        save_users(family_id, users)
+        if not save_users(family_id, users):
+            return fail('数据保存失败，请检查COS配置')
         return ok({'family_id': family_id}, '家庭创建成功')
     except Exception as e:
         return fail(f'操作失败: {e}')
