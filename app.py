@@ -1842,5 +1842,34 @@ def vocab_init_structure_route():
 def main_handler(event, context):
     return app(event, context)
 
+# ==================== Debug ====================
+@app.route('/api/debug/cos')
+def debug_cos():
+    """Diagnose COS configuration and test read/write"""
+    import os
+    info = {
+        'COS_BUCKET': os.environ.get('COS_BUCKET', '(not set, default: kb-efm-analytics)'),
+        'COS_REGION': os.environ.get('COS_REGION', '(not set, default: ap-guangzhou)'),
+        'COS_HOST': COS_HOST,
+        'COS_PREFIX': COS_PREFIX,
+        'COS_SID': COS_SID[:8] + '...' if COS_SID else '(empty)',
+        'COS_SKEY_set': bool(COS_SKEY),
+    }
+    # Test write
+    test_key = 'debug_test.json'
+    test_data = {'test': True, 'time': int(time.time())}
+    w_status, w_body = cos._req('PUT', test_key, test_data)
+    info['write_status'] = w_status
+    if w_status != 200:
+        info['write_error'] = w_body.decode('utf-8')[:500] if w_body else '(empty)'
+    else:
+        # Test read back
+        r_status, r_body = cos._req('GET', test_key)
+        info['read_status'] = r_status
+        info['read_body'] = r_body.decode('utf-8')[:200] if r_body else '(empty)'
+        # Cleanup
+        cos._req('DELETE', test_key)
+    return jsonify(info)
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=9000, debug=False)
