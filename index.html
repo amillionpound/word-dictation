@@ -296,7 +296,7 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <div id="learn-words-area" class="mt8 hidden"></div>
 </div>
 </div>
-<div id="ctab-dict">
+<div id="ctab-dict" class="hidden">
 <div class="card">
 <h3>开始听写</h3>
 <p class="muted sm mt8">选择单词单元，开始听写练习</p>
@@ -315,7 +315,7 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 </div>
 </div>
 </div>
-<div id="ctab-records">
+<div id="ctab-records" class="hidden">
 <div class="card">
 <h3>我的成绩</h3>
 <div id="child-record-list" class="mt8"></div>
@@ -1166,7 +1166,8 @@ async function loadRecords() {
                 <div class="li-sub">${rec.correct_count}/${rec.total} · ${rec.mode === 'blind' ? '盲听' : '读听'} · ${fmtDate(rec.created_at)}</div>
             </div>
             <div class="row gap4">
-                <button class="btn btn-sec btn-sm" onclick="retest('${rec.record_id}')">重测</button>
+                <button class="btn btn-sec btn-sm" onclick="retest('${rec.record_id}', false)">原顺序重听</button>
+                <button class="btn btn-sec btn-sm" onclick="retest('${rec.record_id}', true)">打乱重听</button>
                 <button class="btn btn-err btn-sm" onclick="deleteRecord('${rec.record_id}')">删除</button>
             </div>
         </div>`;
@@ -1180,7 +1181,7 @@ async function deleteRecord(rid) {
     else showToast(r.msg, 'err');
 }
 
-async function retest(rid) {
+async function retest(rid, shuffle = false) {
     const filter = document.getElementById('record-filter').value;
     let url = 'records?family_id=' + S.family_id;
     if (filter) url += '&child_id=' + filter;
@@ -1188,8 +1189,15 @@ async function retest(rid) {
     if (r.code !== 0) { showToast(r.msg, 'err'); return; }
     const rec = r.data.find(r => r.record_id === rid);
     if (!rec) { showToast('记录不存在', 'err'); return; }
-    // Start dictation with the same words
-    S.dict.words = rec.words || [];
+
+    let words = [...(rec.words || [])];
+    if (shuffle && words.length > 1) {
+        for (let i = words.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [words[i], words[j]] = [words[j], words[i]];
+        }
+    }
+    S.dict.words = words;
     S.dict.idx = 0;
     S.dict.mode = rec.mode || 'blind';
     S.dict.replays = 0;
@@ -1199,6 +1207,8 @@ async function retest(rid) {
     S.dictUnitIds = rec.unit_ids || [];
     showView('dictation');
     renderDictation();
+    showToast(shuffle ? '已打乱顺序，开始新听写' : '按原顺序重新听写', 'ok');
+}
 }
 
 async function changePwd() {
@@ -1299,6 +1309,7 @@ function switchChildTab(tab) {
 async function loadChild() {
     loadChildUnits();
     loadLearnPage();
+    switchChildTab('learn');
 }
 
 async function loadLearnPage() {
@@ -1339,7 +1350,7 @@ async function renderLearnUnitWords(unitId, el) {
             </div>
             <div class="w-pho">${esc(w.phonetic || '')}</div>
             <div class="w-tr">${esc(w.translation || '')}</div>
-            <div class="w-st">${esc(w.example || '')}</div>
+            <div class="w-st">${esc(w.sentence || w.example || '')}</div>
         </div>
     `).join('');
     area.innerHTML = `
@@ -1401,7 +1412,8 @@ async function loadChildRecords() {
         el.innerHTML = '<div class="empty"><p>暂无成绩记录</p></div>';
         return;
     }
-    el.innerHTML = r.data.map(rec => {
+    S.records = r.data;
+    el.innerHTML = r.data.map((rec, idx) => {
         const cls = rec.percentage >= 60 ? 'score-pass' : 'score-fail';
         return `
         <div class="list-item">
@@ -1409,8 +1421,37 @@ async function loadChildRecords() {
                 <div class="li-title"><span class="score-big ${cls}" style="font-size:16px">${rec.percentage}分</span></div>
                 <div class="li-sub">${rec.correct_count}/${rec.total} · ${rec.mode === 'blind' ? '盲听' : '读听'} · ${fmtDate(rec.created_at)}</div>
             </div>
+            <div class="row gap4">
+                <button class="btn btn-sec btn-sm" onclick="replayDictation(${idx}, false)">原顺序重听</button>
+                <button class="btn btn-sec btn-sm" onclick="replayDictation(${idx}, true)">打乱重听</button>
+            </div>
         </div>`;
     }).join('');
+}
+
+function replayDictation(recordIdx, shuffle) {
+    const rec = S.records[recordIdx];
+    if (!rec || !rec.words || !rec.words.length) { showToast('该记录没有单词数据', 'err'); return; }
+
+    let words = [...rec.words];
+    if (shuffle) {
+        for (let i = words.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [words[i], words[j]] = [words[j], words[i]];
+        }
+    }
+    S.dict = {
+        words: words, idx: 0,
+        mode: rec.mode === 'reading' ? 'reading' : 'blind',
+        replays: 0, maxReplay: S.config.default_replay_limit || 5,
+        answers: [],
+    };
+    S.dictChildId = S.child_id;
+    S.dictChildName = S.child_name;
+    switchChildTab('dict');
+    showView('dictation');
+    renderDictation();
+    showToast(shuffle ? '已打乱顺序，开始新听写' : '按原顺序重新听写', 'ok');
 }
 
 // ==================== Dictation ====================
