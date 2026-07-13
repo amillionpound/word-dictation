@@ -19,9 +19,6 @@ jobs:
       - name: Install Tencent Cloud SDK
         run: pip install tencentcloud-sdk-python-scf
 
-      - name: Create deployment package
-        run: zip -r deploy.zip app.py index.html
-
       - name: Deploy to SCF
         env:
           TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
@@ -31,4 +28,6 @@ jobs:
       - name: Health check
         run: |
           sleep 5
-          curl -sf -o /dev/null -w "%{http_code}" https://1256784020-ca9zcay6yh.ap-guangzhou.tencentscf.com/ || echo "Health check failed (may need a few seconds to warm up)"
+          FUNCTION_URL=$(python -c "import json; print('https://1256784020-' + json.load(open('.scf-deploy.json'))['function_name'] + '.ap-guangzhou.tencentscf.com/')")
+          echo "Checking $FUNCTION_URL"
+          curl -sf -o /dev/null -w "HTTP %{http_code}" "$FUNCTION_URL" || echo " (may need warm-up)"
