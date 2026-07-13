@@ -451,10 +451,10 @@ let S = {
 
 // ==================== API ====================
 const API_BASE = 'https://1256784020-ca9zcay6yh.ap-guangzhou.tencentscf.com';
-async function api(path, data = {}) {
+async function api(path, data = {}, method = 'POST') {
     try {
         const resp = await fetch(API_BASE + '/api/' + path, {
-            method: 'POST',
+            method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
@@ -695,7 +695,11 @@ async function loadFamilies() {
                 <div class="li-title">${esc(f.family_name)}</div>
                 <div class="li-sub">ID: ${f.family_id} · ${fmtDate(f.created_at)}</div>
             </div>
-            <button class="btn btn-sec btn-sm" onclick="copyFamilyUrl('${f.family_id}')">复制链接</button>
+            <div class="row gap4">
+                <button class="btn btn-sec btn-sm" onclick="copyFamilyUrl('${f.family_id}')">复制链接</button>
+                <button class="btn btn-sec btn-sm" onclick="adminChangePwd('${f.family_id}', '${esc(f.family_name)}')">改密码</button>
+                <button class="btn btn-err btn-sm" onclick="adminDeleteFamily('${f.family_id}', '${esc(f.family_name)}')">删除</button>
+            </div>
         </div>
     `).join('');
 }
@@ -706,6 +710,21 @@ function copyFamilyUrl(fid) {
         () => showToast('链接已复制', 'ok'),
         () => showToast(url, '')
     );
+}
+
+async function adminChangePwd(fid, fname) {
+    const pwd = prompt(`为家庭「${fname}」设置新的家长登录密码：`);
+    if (!pwd) return;
+    if (pwd.length < 4) { showToast('密码至少4位', 'err'); return; }
+    const r = await api('families/' + fid, { password: pwd }, 'PUT');
+    showToast(r.code === 0 ? r.msg : r.msg, r.code === 0 ? 'ok' : 'err');
+}
+
+async function adminDeleteFamily(fid, fname) {
+    if (!confirm(`确定删除家庭「${fname}」？\n\n⚠️ 此操作不可恢复，该家庭的所有孩子、单词和成绩记录都将被永久删除！`)) return;
+    const r = await apiDel('families/' + fid);
+    showToast(r.code === 0 ? r.msg : r.msg, r.code === 0 ? 'ok' : 'err');
+    if (r.code === 0) loadFamilies();
 }
 
 async function createFamily() {
@@ -1406,7 +1425,7 @@ function renderDictation() {
         document.getElementById('dict-blind').classList.remove('hidden');
         document.getElementById('dict-reading').classList.add('hidden');
         document.getElementById('dict-num').textContent = `${d.idx + 1}`;
-        d.replays = 0;
+        d.replays = 1;
         updateReplayBtn();
         setTimeout(() => speak(w.word), 300);
     } else {
