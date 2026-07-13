@@ -1212,6 +1212,61 @@ def families_route():
     except Exception as e:
         return fail(f'操作失败: {e}')
 
+@app.route('/api/families/<family_id>', methods=['PUT', 'DELETE'])
+def family_manage_route(family_id):
+    try:
+        families = get_families()
+        fam = next((f for f in families if f['family_id'] == family_id), None)
+        if not fam:
+            return fail('家庭不存在')
+
+        if request.method == 'DELETE':
+            # Remove from families index
+            families = [f for f in families if f['family_id'] != family_id]
+            save_families(families)
+            # Delete all COS data for this family
+            for prefix in ['families/' + family_id + '/', 'records/']:
+                # Try to delete known keys
+                for key in [f'families/{family_id}/users.json',
+                            f'families/{family_id}/units.json',
+                            f'families/{family_id}/records.json']:
+                    try:
+                        cos.delete(key)
+                    except Exception:
+                        pass
+                # Also delete records prefixed with this family_id
+                try:
+                    import json as _json
+                    recs_key = 'records_index.json'
+                    recs_data = _json.loads(cos.get(recs_key) or '{}')
+                    filtered = {k: v for k, v in recs_data.items()
+                                if not (isinstance(v, dict) and v.get('family_id') == family_id)}
+                    cos.put_json(recs_key, filtered)
+                except Exception:
+                    pass
+            return ok(None, '家庭已删除')
+
+        # PUT: change parent password
+        data = request.get_json() or {}
+        new_password = data.get('password', '')
+        if not new_password:
+            return fail('新密码不能为空')
+
+        users = get_users(family_id)
+        if not users:
+            return fail('家庭不存在')
+
+        new_hash = hash_pwd(new_password)
+        if not check_parent_pwd_global(new_hash):
+            return fail('该密码已被其他家庭使用，请更换')
+
+        users['parent']['password_hash'] = new_hash
+        if not save_users(family_id, users):
+            return fail('保存失败')
+        return ok(None, '密码已更新')
+    except Exception as e:
+        return fail(f'操作失败: {e}')
+
 @app.route('/api/config', methods=['GET', 'POST'])
 def config_route():
     try:
