@@ -1029,9 +1029,11 @@ async function loadChildren() {
             <div class="li-main">
                 <div class="li-title">${esc(c.name)} <span class="tag tag-gray">${c.grade}年级</span></div>
                 <div class="li-sub">添加于 ${fmtDate(c.created_at)}</div>
+                ${S.is_test ? '<div class="li-sub" style="color:var(--warn)">初始密码 111111（可用「改密码」重置）</div>' : ''}
             </div>
             <div class="row gap4">
                 <button class="btn btn-sec btn-sm" onclick="genEntryCode('${c.child_id}')">录入码</button>
+                <button class="btn btn-sec btn-sm" onclick="showChangeChildPwdModal('${c.child_id}')">改密码</button>
                 <button class="btn btn-err btn-sm" onclick="deleteChild('${c.child_id}')">删除</button>
             </div>
         </div>
@@ -1079,6 +1081,26 @@ async function deleteChild(cid) {
     const r = await apiDel('children/' + cid + '?family_id=' + S.family_id);
     if (r.code === 0) { showToast('已删除', 'ok'); loadChildren(); }
     else showToast(r.msg, 'err');
+}
+
+function showChangeChildPwdModal(cid) {
+    showModal(`
+        <div class="modal-h"><h3>修改孩子密码</h3><button class="close" onclick="closeModal()">&times;</button></div>
+        <div class="col gap8">
+            <div><label>新密码</label><input id="modal-child-newpwd" type="password" placeholder="设置新密码（用于孩子登录）"></div>
+            <button class="btn btn-primary btn-block mt8" onclick="changeChildPwd('${cid}')">保存新密码</button>
+        </div>
+    `);
+}
+
+async function changeChildPwd(cid) {
+    const pwd = document.getElementById('modal-child-newpwd').value;
+    if (!pwd) { showToast('密码不能为空', 'err'); return; }
+    const r = await api('children/' + cid, { family_id: S.family_id, password: pwd }, 'PUT');
+    if (r.code !== 0) { showToast(r.msg, 'err'); return; }
+    showToast('孩子密码已修改', 'ok');
+    closeModal();
+    loadChildren();
 }
 
 async function genEntryCode(cid) {
