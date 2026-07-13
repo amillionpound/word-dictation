@@ -1,11 +1,22 @@
 #!/usr/bin/env python3
 """
 Word Dictation Buddy - SCF Web Function
-Dependencies: Flask (pre-installed in SCF Python runtime), urllib (stdlib)
+Dependencies: Flask (bundled in vendor/), urllib (stdlib)
 """
 
-import json
+import sys
 import os
+
+# Add vendored dependencies to path (for SCF deployment)
+_vendor = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vendor')
+if not os.path.isdir(_vendor):
+    _vendor = os.path.join(os.getcwd(), 'vendor')
+if not os.path.isdir(_vendor):
+    _vendor = os.path.join('/var/task', 'vendor')
+if os.path.isdir(_vendor):
+    sys.path.insert(0, _vendor)
+
+import json
 import re
 import time
 import uuid
@@ -33,6 +44,14 @@ COS_PREFIX = 'vocab-buddy/'
 COS_HOST = f'{COS_BUCKET}.cos.{COS_REGION}.myqcloud.com'
 
 app = Flask(__name__)
+
+# CORS: allow frontend hosted on other domains (GitHub Pages, CloudStudio, etc.)
+@app.after_request
+def _cors(resp):
+    resp.headers['Access-Control-Allow-Origin'] = '*'
+    resp.headers['Access-Control-Allow-Methods'] = 'GET, POST, DELETE, OPTIONS'
+    resp.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+    return resp
 
 # ==================== COS Client ====================
 class COSClient:
@@ -1004,15 +1023,28 @@ def get_words_from_unit(grade, unit_id):
             return words
     return []
 
+def _find_static(filename):
+    """Find a static file across possible SCF runtime directories."""
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
+        os.path.join(os.getcwd(), filename),
+        os.path.join('/var/task', filename),
+        os.path.join('/mnt/auto', filename),
+        filename,
+    ]
+    for p in candidates:
+        if os.path.isfile(p):
+            return p
+    return None
+
 # ==================== Routes: Static ====================
 @app.route('/')
 def index():
-    html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
-    try:
+    html_path = _find_static('index.html')
+    if html_path:
         with open(html_path, 'r', encoding='utf-8') as f:
             return Response(f.read(), mimetype='text/html')
-    except Exception:
-        return 'index.html not found', 404
+    return 'index.html not found', 404
 
 # ==================== Routes: Auth ====================
 @app.route('/api/login', methods=['POST'])
@@ -1811,4 +1843,4 @@ def main_handler(event, context):
     return app(event, context)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=9000, debug=True)
+    app.run(host='0.0.0.0', port=9000, debug=False)
