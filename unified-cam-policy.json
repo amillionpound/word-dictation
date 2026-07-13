@@ -27,6 +27,7 @@
       "effect": "allow",
       "action": [
         "scf:UpdateFunctionCode",
+        "scf:UpdateFunctionConfiguration",
         "scf:PublishVersion",
         "scf:GetFunction"
       ],
