@@ -160,6 +160,33 @@ def main():
         resp = client.UpdateFunctionCode(req)
         print(f"DEPLOY SUCCESS: RequestId={resp.RequestId}")
 
+        # Trigger dependency installation (for requirements.txt)
+        try:
+            cfg_req = scf_models.UpdateFunctionConfigurationRequest()
+            cfg_req.FunctionName = cfg["function_name"]
+            cfg_req.Namespace = cfg["namespace"]
+            cfg_req.InstallDependency = "TRUE"
+            cfg_resp = client.UpdateFunctionConfiguration(cfg_req)
+            print(f"Dependency install triggered: RequestId={cfg_resp.RequestId}")
+        except Exception as e:
+            print(f"Dependency install skipped: {e}")
+
+        # Wait for update to complete before publishing version
+        import time
+        for i in range(6):
+            time.sleep(5)
+            try:
+                check_req = scf_models.GetFunctionRequest()
+                check_req.FunctionName = cfg["function_name"]
+                check_req.Namespace = cfg["namespace"]
+                check_resp = client.GetFunction(check_req)
+                status = check_resp.Status
+                print(f"  Status check ({i+1}/6): {status}")
+                if status == "Active":
+                    break
+            except Exception:
+                pass
+
         # Get function info AFTER update
         get_function_info(client, cfg, "(AFTER update)")
 
