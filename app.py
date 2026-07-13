@@ -1,11 +1,22 @@
 #!/usr/bin/env python3
 """
 Word Dictation Buddy - SCF Web Function
-Dependencies: Flask (pre-installed in SCF Python runtime), urllib (stdlib)
+Dependencies: Flask (bundled in vendor/), urllib (stdlib)
 """
 
-import json
+import sys
 import os
+
+# Add vendored dependencies to path (for SCF deployment)
+_vendor = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'vendor')
+if not os.path.isdir(_vendor):
+    _vendor = os.path.join(os.getcwd(), 'vendor')
+if not os.path.isdir(_vendor):
+    _vendor = os.path.join('/var/task', 'vendor')
+if os.path.isdir(_vendor):
+    sys.path.insert(0, _vendor)
+
+import json
 import re
 import time
 import uuid
