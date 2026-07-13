@@ -9,7 +9,8 @@ Reused across projects — each repo has a .scf-deploy.json config:
     "namespace": "default",
     "region": "ap-guangzhou",
     "handler": "app.main_handler",
-    "files": ["app.py", "index.html"]
+    "files": ["app.py", "index.html", "scf_bootstrap"],
+    "deps": ["flask"]
   }
 
 Required env vars (from GitHub Secrets):
@@ -21,6 +22,7 @@ import base64
 import json
 import os
 import stat
+import subprocess
 import sys
 import zipfile
 
@@ -38,7 +40,8 @@ def load_config():
         "namespace": "default",
         "region": "ap-guangzhou",
         "handler": "app.main_handler",
-        "files": ["app.py", "index.html"],
+        "files": ["app.py", "index.html", "scf_bootstrap"],
+        "deps": [],
     }
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
@@ -50,6 +53,23 @@ def load_config():
         sys.exit(1)
 
     return cfg
+
+
+def install_deps(deps, vendor_dir="vendor"):
+    """Install Python dependencies into vendor_dir for bundling."""
+    if not deps:
+        return
+    if os.path.exists(vendor_dir):
+        import shutil
+        shutil.rmtree(vendor_dir)
+    os.makedirs(vendor_dir)
+    print(f"Installing dependencies: {', '.join(deps)}")
+    subprocess.run(
+        [sys.executable, "-m", "pip", "install"] + deps + ["--target", vendor_dir],
+        check=True,
+        capture_output=True,
+    )
+    print(f"  Dependencies installed to {vendor_dir}/")
 
 
 def get_function_info(client, cfg, label=""):
@@ -65,20 +85,6 @@ def get_function_info(client, cfg, label=""):
         print(f"  Type: {resp.Type}")
         print(f"  Status: {resp.Status}")
         print(f"  CodeSize: {resp.CodeSize}")
-        print(f"  CodeSource: {resp.CodeSource}")
-        if hasattr(resp, 'Code') and resp.Code:
-            print(f"  Code.CosBucketName: {resp.Code.CosBucketName}")
-            print(f"  Code.CosObjectName: {resp.Code.CosObjectName}")
-        # List triggers
-        if hasattr(resp, 'Triggers') and resp.Triggers:
-            for t in resp.Triggers:
-                print(f"  Trigger: type={t.Type} name={t.TriggerName} qualifier={getattr(t, 'Qualifier', 'N/A')}")
-                if hasattr(t, 'TriggerDesc'):
-                    desc = t.TriggerDesc or ''
-                    # Print first 200 chars of trigger desc
-                    print(f"    Desc: {desc[:200]}")
-        else:
-            print("  Triggers: (none listed in GetFunction)")
     except Exception as e:
         print(f"  GetFunction failed: {e}")
 
@@ -95,8 +101,6 @@ def list_triggers(client, cfg):
             print("  No triggers found")
         for t in resp.Triggers:
             print(f"  Type: {t.Type} | Name: {t.TriggerName} | Qualifier: {getattr(t, 'Qualifier', 'N/A')} | Enable: {t.Enable}")
-            if hasattr(t, 'TriggerDesc'):
-                print(f"    Desc: {(t.TriggerDesc or '')[:300]}")
     except Exception as e:
         print(f"  ListTriggers failed: {e}")
 
@@ -111,6 +115,9 @@ def main():
 
     cfg = load_config()
 
+    # Install dependencies into vendor/ directory
+    install_deps(cfg.get("deps", []))
+
     # Create deployment zip
     zip_path = "deploy.zip"
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
@@ -118,7 +125,6 @@ def main():
             if os.path.exists(f):
                 if f == "scf_bootstrap":
                     # scf_bootstrap needs execute permission (0o755)
-                    # Windows zip doesn't set Unix perms, so set explicitly
                     with open(f, "rb") as fh:
                         data = fh.read()
                     info = zipfile.ZipInfo(f)
@@ -132,6 +138,17 @@ def main():
             else:
                 print(f"  WARNING: {f} not found, skipping")
 
+        # Add vendored dependencies
+        vendor_dir = "vendor"
+        if os.path.isdir(vendor_dir):
+            for root, dirs, files in os.walk(vendor_dir):
+                for fname in files:
+                    full_path = os.path.join(root, fname)
+                    arc_path = os.path.relpath(full_path, ".")
+                    z.write(full_path, arc_path)
+            dep_count = sum(len(files) for _, _, files in os.walk(vendor_dir))
+            print(f"  Added: {dep_count} dependency files from {vendor_dir}/")
+
     with open(zip_path, "rb") as f:
         zip_b64 = base64.b64encode(f.read()).decode("utf-8")
 
@@ -142,27 +159,22 @@ def main():
         cred = credential.Credential(secret_id, secret_key)
         client = scf_client.ScfClient(cred, cfg["region"])
 
-        # Get function info BEFORE update
         get_function_info(client, cfg, "(BEFORE update)")
         list_triggers(client, cfg)
 
         # Update function code
-        # Note: Do NOT set Handler for HTTP-type (Web Function) — it uses a
-        # built-in web server and the handler field must remain empty.
+        # Do NOT set Handler for HTTP-type (Web Function)
         req = scf_models.UpdateFunctionCodeRequest()
         req.FunctionName = cfg["function_name"]
         req.Namespace = cfg["namespace"]
         req.ZipFile = zip_b64
-        # Only set Handler for non-HTTP functions (event functions)
-        if cfg.get("set_handler", False):
-            req.Handler = cfg["handler"]
 
         resp = client.UpdateFunctionCode(req)
         print(f"DEPLOY SUCCESS: RequestId={resp.RequestId}")
 
-        # Wait for function to become Active after code update
+        # Wait for function to become Active
         import time
-        def wait_active(client, cfg, label, max_retries=12):
+        def wait_active(label, max_retries=12):
             for i in range(max_retries):
                 time.sleep(5)
                 try:
@@ -178,26 +190,11 @@ def main():
                     pass
             return False
 
-        wait_active(client, cfg, "post-code")
+        wait_active("post-code")
 
-        # Trigger dependency installation (for requirements.txt)
-        try:
-            cfg_req = scf_models.UpdateFunctionConfigurationRequest()
-            cfg_req.FunctionName = cfg["function_name"]
-            cfg_req.Namespace = cfg["namespace"]
-            cfg_req.InstallDependency = "TRUE"
-            cfg_resp = client.UpdateFunctionConfiguration(cfg_req)
-            print(f"Dependency install triggered: RequestId={cfg_resp.RequestId}")
-        except Exception as e:
-            print(f"Dependency install skipped: {e}")
-
-        # Wait for dependency install to complete
-        wait_active(client, cfg, "post-dep")
-
-        # Get function info AFTER update
         get_function_info(client, cfg, "(AFTER update)")
 
-        # Publish a new version for stability
+        # Publish a new version
         try:
             ver_req = scf_models.PublishVersionRequest()
             ver_req.FunctionName = cfg["function_name"]
@@ -207,7 +204,6 @@ def main():
         except Exception as e:
             print(f"Version publish skipped: {e}")
 
-        # List triggers again after publish
         list_triggers(client, cfg)
 
     except TencentCloudSDKException as e:
