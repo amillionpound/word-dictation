@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>单词听写</title>
+<style>
+:root{--pri:#534AB7;--pri-l:#EEEDFE;--bg:#F5F4F8;--card:#fff;--text:#2C2C2A;--muted:#888780;--ok:#0F6E56;--err:#A32D2D;--warn:#854F0B;--bd:#E5E5E5;--r:8px}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);font-size:16px;line-height:1.6;-webkit-tap-highlight-color:transparent}
+button{font-family:inherit;font-size:inherit;cursor:pointer;border:none;background:none}
+input,textarea,select{font-family:inherit;font-size:16px;width:100%;padding:12px;border:1px solid var(--bd);border-radius:var(--r);outline:none;background:var(--card)}
+input:focus,textarea:focus,select:focus{border-color:var(--pri)}
+label{display:block;margin-bottom:4px;font-weight:500;color:var(--muted);font-size:14px}
+.hidden{display:none!important}
+nav{position:fixed;top:0;left:0;right:0;height:52px;background:var(--pri);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 16px;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+nav h1{font-size:17px;font-weight:500}
+nav .nav-right{display:flex;gap:8px;align-items:center}
+nav .nav-btn{color:#fff;padding:6px 12px;border-radius:6px;font-size:14px;background:rgba(255,255,255,.15)}
+nav .nav-btn:active{background:rgba(255,255,255,.3)}
+.container{max-width:640px;margin:0 auto;padding:52px 12px 24px;min-height:100vh}
+.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 20px;border-radius:var(--r);font-weight:500;min-height:44px;transition:opacity .15s}
+.btn:active{opacity:.7}
+.btn-primary{background:var(--pri);color:#fff}
+.btn-ok{background:var(--ok);color:#fff}
+.btn-err{background:var(--err);color:#fff}
+.btn-sec{background:var(--card);color:var(--pri);border:1px solid var(--pri)}
+.btn-gray{background:#eee;color:var(--text)}
+.btn-sm{padding:6px 12px;min-height:32px;font-size:14px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-block{display:flex;width:100%}
+.row{display:flex;gap:8px;align-items:center}
+.row.wrap{flex-wrap:wrap}
+.col{display:flex;flex-direction:column;gap:8px}
+.gap4{gap:4px}.gap8{gap:8px}.gap12{gap:12px}.gap16{gap:16px}
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}
+.tc{text-align:center}.tl{text-align:left}
+.muted{color:var(--muted);font-size:14px}
+.sm{font-size:14px}
+.xs{font-size:12px}
+.bold{font-weight:600}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:500}
+.tag-ok{background:#E1F5EE;color:var(--ok)}
+.tag-warn{background:#FAEEDA;color:var(--warn)}
+.tag-err{background:#FCEBEB;color:var(--err)}
+.tag-pri{background:var(--pri-l);color:var(--pri)}
+.tag-gray{background:#f0f0f0;color:var(--muted)}
+.tabs{display:flex;gap:0;background:var(--card);border-radius:var(--r);overflow:hidden;margin-bottom:12px;border:1px solid var(--bd)}
+.tab{flex:1;padding:10px 4px;text-align:center;font-size:14px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent}
+.tab.active{color:var(--pri);border-bottom-color:var(--pri);background:var(--pri-l)}
+.word-card{background:var(--card);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;border-left:3px solid var(--pri)}
+.word-card .w-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.word-card .w-word{font-size:18px;font-weight:600}
+.word-card .w-pho{color:var(--muted);font-size:14px;margin-bottom:4px;font-family:Georgia,serif}
+.word-card .w-tr{font-size:14px;margin-bottom:4px}
+.word-card .w-st{font-size:13px;color:var(--muted);font-style:italic}
+.dict-box{text-align:center;padding:32px 16px}
+.dict-num{font-size:48px;font-weight:700;color:var(--pri);margin-bottom:16px}
+.dict-word{font-size:32px;font-weight:700;margin-bottom:8px}
+.dict-pho{color:var(--muted);font-size:18px;font-family:Georgia,serif;margin-bottom:8px}
+.dict-tr{font-size:16px;margin-bottom:24px}
+.dict-progress{display:flex;justify-content:center;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--bd)}
+.dot.done{background:var(--ok)}
+.dot.cur{background:var(--pri);transform:scale(1.3)}
+.score-input{display:flex;align-items:center;gap:8px;justify-content:center;font-size:20px}
+.score-input input{width:60px;text-align:center;font-size:24px;font-weight:600;padding:8px}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:200;max-width:90%;text-align:center;transition:opacity .3s}
+.toast.err{background:rgba(163,45,45,.9)}
+.toast.ok{background:rgba(15,110,86,.9)}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:150;display:flex;align-items:flex-end;justify-content:center}
+.modal{background:var(--card);border-radius:16px 16px 0 0;width:100%;max-width:640px;padding:20px;max-height:85vh;overflow-y:auto}
+.modal-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.modal-h h3{font-size:18px;font-weight:600}
+.modal .close{font-size:24px;color:var(--muted);padding:4px 8px}
+.empty{text-align:center;padding:40px 16px;color:var(--muted)}
+.empty p{margin-top:8px}
+.login-box{max-width:360px;margin:40px auto}
+.login-box h2{text-align:center;margin-bottom:24px;font-size:22px}
+.role-tabs{display:flex;gap:8px;margin-bottom:16px}
+.role-tab{flex:1;padding:10px;text-align:center;border-radius:var(--r);border:2px solid var(--bd);font-weight:500}
+.role-tab.active{border-color:var(--pri);background:var(--pri-l);color:var(--pri)}
+.replay-btn{font-size:14px}
+.list-item{display:flex;justify-content:space-between;align-items:center;padding:12px;border-bottom:1px solid var(--bd)}
+.list-item:last-child{border-bottom:none}
+.list-item .li-main{flex:1}
+.list-item .li-title{font-weight:500}
+.list-item .li-sub{font-size:13px;color:var(--muted)}
+.score-big{font-size:28px;font-weight:700}
+.score-pass{color:var(--ok)}
+.score-fail{color:var(--err)}
+textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;line-height:1.8;resize:vertical}
+.check-result{margin-top:12px}
+.cr-word{display:inline-block;padding:4px 10px;margin:4px;border-radius:6px;font-size:14px}
+.cr-ok{background:#E1F5EE;color:var(--ok)}
+.cr-err{background:#FCEBEB;color:var(--err);text-decoration:line-through}
+.cr-fix{background:#FAEEDA;color:var(--warn)}
+.unit-checkbox{display:flex;align-items:center;gap:8px;padding:10px;border-radius:var(--r);border:1px solid var(--bd);margin-bottom:8px;cursor:pointer}
+.unit-checkbox.active{border-color:var(--pri);background:var(--pri-l)}
+.unit-checkbox input{width:auto}
+.footer-hint{text-align:center;color:var(--muted);font-size:12px;padding:16px}
+.stat-box{text-align:center;padding:16px;border-radius:var(--r);background:var(--bg)}
+.stat-num{font-size:28px;font-weight:700;color:var(--pri)}
+.stat-label{font-size:13px;color:var(--muted);margin-top:4px}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.bar-row>span:first-child{width:80px;font-size:14px;text-align:right}
+.bar-track{flex:1;height:20px;border-radius:4px;background:var(--bg);overflow:hidden}
+.bar-fill{height:100%;border-radius:4px;background:var(--pri)}
+.bar-val{width:40px;font-size:14px;font-weight:600}
+.usage-table{width:100%;border-collapse:collapse;font-size:13px}
+.usage-table th{text-align:left;padding:8px;border-bottom:2px solid var(--bd);color:var(--muted)}
+.usage-table td{padding:6px 8px;border-bottom:1px solid var(--bd)}
+</style>
+</head>
+<body>
+<nav>
+<h1>单词听写</h1>
+<div class="nav-right">
+<span id="nav-user" class="hidden xs" style="opacity:.8"></span>
+<button id="nav-logout" class="nav-btn hidden" onclick="logout()">退出</button>
+</div>
+</nav>
+
+<div class="container">
+<!-- Login -->
+<div id="view-login" class="view">
+<div class="login-box">
+<h2>单词听写系统</h2>
+<div id="login-family-section">
+<div class="role-tabs">
+<div class="role-tab active" data-role="parent" onclick="switchLoginRole('parent')">家长</div>
+<div class="role-tab" data-role="child" onclick="switchLoginRole('child')">孩子</div>
+<div class="role-tab" data-role="code" onclick="switchLoginRole('code')">录入码</div>
+</div>
+<div id="login-parent" class="col gap12">
+<label>家庭标识</label>
+<input id="login-family-id" placeholder="家庭ID" readonly>
+<label>密码</label>
+<input id="login-parent-pwd" type="password" placeholder="输入家长密码">
+<button class="btn btn-primary btn-block" onclick="doLogin('parent')">登录</button>
+</div>
+<div id="login-child" class="col gap12 hidden">
+<label>家庭标识</label>
+<input id="login-family-id2" placeholder="家庭ID" readonly>
+<label>孩子密码</label>
+<input id="login-child-pwd" type="password" placeholder="输入孩子密码">
+<button class="btn btn-primary btn-block" onclick="doLogin('child')">登录</button>
+</div>
+<div id="login-code" class="col gap12 hidden">
+<label>4位录入码</label>
+<input id="login-code-input" maxlength="4" placeholder="输入4位数字" inputmode="numeric" style="font-size:28px;text-align:center;letter-spacing:8px">
+<button class="btn btn-primary btn-block" onclick="doEntryCodeLogin()">进入录入</button>
+</div>
+</div>
+<div id="login-admin-section" class="col gap12">
+<p class="muted tc">家长/孩子登录请使用家庭专属链接</p>
+<div class="role-tabs">
+<div class="role-tab active" data-role="admin" onclick="switchLoginRole('admin')">超管登录</div>
+<div class="role-tab" data-role="family-url" onclick="switchLoginRole('family-url')">输入家庭ID</div>
+</div>
+<div id="login-admin">
+<label>超管密码</label>
+<input id="login-admin-pwd" type="password" placeholder="输入超管密码">
+<button class="btn btn-primary btn-block" onclick="doLogin('admin')">登录</button>
+</div>
+<div id="login-family-url" class="hidden">
+<label>家庭ID</label>
+<input id="login-enter-family" placeholder="输入家庭ID">
+<button class="btn btn-primary btn-block" onclick="setFamilyId()">进入</button>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Admin Dashboard -->
+<div id="view-admin" class="view hidden">
+<div class="tabs">
+<div class="tab active" data-atab="families" onclick="switchAdminTab('families')">家庭管理</div>
+<div class="tab" data-atab="config" onclick="switchAdminTab('config')">系统配置</div>
+<div class="tab" data-atab="usage" onclick="switchAdminTab('usage')">用量统计</div>
+</div>
+<div id="atab-families">
+<div class="card">
+<h3>创建家庭</h3>
+<div class="col gap8 mt8">
+<input id="new-family-name" placeholder="家庭名称（如：张家）">
+<input id="new-parent-name" placeholder="家长称呼（如：张爸爸）">
+<input id="new-family-pwd" type="password" placeholder="家长登录密码">
+<button class="btn btn-primary btn-block" onclick="createFamily()">创建家庭</button>
+</div>
+</div>
+<div class="card">
+<h3>家庭列表</h3>
+<div id="family-list" class="mt8"></div>
+</div>
+</div>
+<div id="atab-config" class="hidden">
+<div class="card">
+<h3>听写配置</h3>
+<div class="col gap8 mt8">
+<label>盲听模式默认最大重听次数</label>
+<input id="cfg-replay" type="number" min="1" max="99" value="5">
+<button class="btn btn-primary btn-block" onclick="saveConfig()">保存配置</button>
+</div>
+</div>
+<div class="card">
+<h3>系统信息</h3>
+<div id="sys-info" class="muted"></div>
+</div>
+</div>
+<div id="atab-usage" class="hidden">
+<div id="usage-content"></div>
+</div>
+</div>
+
+<!-- Parent Dashboard -->
+<div id="view-parent" class="view hidden">
+<div class="tabs">
+<div class="tab active" data-ptab="children" onclick="switchParentTab('children')">孩子</div>
+<div class="tab" data-ptab="units" onclick="switchParentTab('units')">单词</div>
+<div class="tab" data-ptab="records" onclick="switchParentTab('records')">成绩</div>
+<div class="tab" data-ptab="settings" onclick="switchParentTab('settings')">设置</div>
+</div>
+
+<div id="ptab-children">
+<div class="card">
+<div class="row" style="justify-content:space-between">
+<h3>孩子管理</h3>
+<button class="btn btn-primary btn-sm" onclick="showAddChildModal()">+ 添加</button>
+</div>
+<div id="child-list" class="mt8"></div>
+</div>
+<div class="card">
+<h3>录入码</h3>
+<p class="muted sm mt8">为孩子生成4位录入码，孩子可用此码录入单词（8小时有效）</p>
+<div id="entry-code-area" class="mt8"></div>
+</div>
+</div>
+
+<div id="ptab-units">
+<div class="card">
+<div class="row" style="justify-content:space-between">
+<h3>单词单元</h3>
+<button class="btn btn-primary btn-sm" onclick="showTrainingModal()">+ 特训</button>
+</div>
+<div id="unit-list" class="mt8"></div>
+</div>
+</div>
+
+<div id="ptab-records">
+<div class="card">
+<div class="row" style="justify-content:space-between">
+<h3>成绩记录</h3>
+<select id="record-filter" style="width:auto" onchange="loadRecords()">
+<option value="">全部孩子</option>
+</select>
+</div>
+<div id="record-list" class="mt8"></div>
+</div>
+</div>
+
+<div id="ptab-settings">
+<div class="card">
+<h3>听写设置</h3>
+<div class="col gap8 mt8">
+<label>盲听模式默认最大重听次数</label>
+<input id="cfg-replay-p" type="number" min="1" max="99" value="5">
+<button class="btn btn-primary btn-block" onclick="saveConfigP()">保存</button>
+</div>
+</div>
+<div class="card">
+<h3>修改密码</h3>
+<div class="col gap8 mt8">
+<input id="old-pwd" type="password" placeholder="原密码">
+<input id="new-pwd" type="password" placeholder="新密码">
+<button class="btn btn-primary btn-block" onclick="changePwd()">修改密码</button>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Child Dashboard -->
+<div id="view-child" class="view hidden">
+<div class="tabs">
+<div class="tab active" data-ctab="dict" onclick="switchChildTab('dict')">听写</div>
+<div class="tab" data-ctab="records" onclick="switchChildTab('records')">成绩</div>
+</div>
+<div id="ctab-dict">
+<div class="card">
+<h3>开始听写</h3>
+<p class="muted sm mt8">选择单词单元，开始听写练习</p>
+<div id="child-unit-list" class="mt8"></div>
+<div class="mt12 col gap8">
+<label>听写模式</label>
+<div class="row">
+<label style="display:flex;align-items:center;gap:4px;font-size:16px;color:var(--text);font-weight:400">
+<input type="radio" name="dmode" value="blind" checked style="width:auto"> 盲听模式（只听声音）
+</label>
+<label style="display:flex;align-items:center;gap:4px;font-size:16px;color:var(--text);font-weight:400">
+<input type="radio" name="dmode" value="reading" style="width:auto"> 读听模式（显示单词）
+</label>
+</div>
+<button class="btn btn-primary btn-block mt8" onclick="startDictation()">开始听写</button>
+</div>
+</div>
+</div>
+<div id="ctab-records">
+<div class="card">
+<h3>我的成绩</h3>
+<div id="child-record-list" class="mt8"></div>
+</div>
+</div>
+</div>
+
+<!-- Word Entry -->
+<div id="view-entry" class="view hidden">
+<div class="card">
+<div class="row" style="justify-content:space-between">
+<h3>录入单词</h3>
+<span id="entry-child-name" class="tag tag-pri"></span>
+</div>
+<p class="muted sm mt8">每行一个单词，只输入英文单词</p>
+<textarea id="entry-textarea" class="entry mt8" placeholder="apple&#10;banana&#10;dictionary"></textarea>
+<div class="row gap8 mt8">
+<button class="btn btn-sec" onclick="aiCheck()">AI校验</button>
+<button class="btn btn-primary" onclick="aiGenerate()" id="btn-generate" disabled>生成内容</button>
+</div>
+<div id="check-result" class="check-result"></div>
+</div>
+<div id="entry-review" class="hidden">
+<div class="card">
+<div class="row" style="justify-content:space-between">
+<h3>内容预览</h3>
+<span class="muted sm" id="word-count"></span>
+</div>
+<div id="word-review-list" class="mt8"></div>
+</div>
+<div class="row gap8 mt8">
+<button class="btn btn-sec btn-block" onclick="saveDraft()">保存草稿</button>
+<button class="btn btn-primary btn-block" onclick="submitWords()">提交</button>
+</div>
+</div>
+</div>
+
+<!-- Dictation Setup (Parent) -->
+<div id="view-dict-setup" class="view hidden">
+<div class="card">
+<h3>听写设置</h3>
+<div class="col gap8 mt8">
+<label>选择孩子</label>
+<select id="dict-child-select"></select>
+<label class="mt8">选择单元（可多选）</label>
+<div id="dict-unit-list"></div>
+<label class="mt8">听写模式</label>
+<div class="row">
+<label style="display:flex;align-items:center;gap:4px;font-size:16px;color:var(--text);font-weight:400">
+<input type="radio" name="dmode-p" value="blind" checked style="width:auto"> 盲听
+</label>
+<label style="display:flex;align-items:center;gap:4px;font-size:16px;color:var(--text);font-weight:400">
+<input type="radio" name="dmode-p" value="reading" style="width:auto"> 读听
+</label>
+</div>
+<button class="btn btn-primary btn-block mt8" onclick="startDictationP()">开始听写</button>
+</div>
+</div>
+</div>
+
+<!-- Dictation -->
+<div id="view-dictation" class="view hidden">
+<div class="card dict-box">
+<div class="dict-progress" id="dict-progress"></div>
+<div id="dict-blind">
+<div class="dict-num" id="dict-num">1</div>
+<p class="muted">听写中...请写下你听到的单词</p>
+</div>
+<div id="dict-reading" class="hidden">
+<div class="dict-word" id="dict-word">word</div>
+<div class="dict-pho" id="dict-pho">/phonetic/</div>
+<div class="dict-tr" id="dict-tr">translation</div>
+</div>
+<div class="row gap12 mt16" style="justify-content:center">
+<button class="btn btn-sec replay-btn" id="btn-replay" onclick="replayWord()">重听</button>
+<button class="btn btn-primary" id="btn-next" onclick="nextWord()">下一题</button>
+</div>
+</div>
+</div>
+
+<!-- Results -->
+<div id="view-results" class="view hidden">
+<div class="card">
+<h3>听写完成</h3>
+<p class="muted sm mt8">请核对听写内容，登记成绩</p>
+<div id="result-list" class="mt12"></div>
+</div>
+<div class="card">
+<h3>登记成绩</h3>
+<div class="score-input mt8">
+<span>对了</span>
+<input id="score-correct" type="number" min="0" placeholder="0">
+<span>个，共<span id="score-total">0</span>个</span>
+</div>
+<div class="tc mt8">
+<span class="muted">得分：</span>
+<span class="score-big" id="score-pct">0</span>
+<span class="muted">分</span>
+</div>
+<button class="btn btn-primary btn-block mt12" onclick="saveScore()">保存成绩</button>
+</div>
+</div>
+
+<!-- Records (standalone) -->
+<div id="view-records" class="view hidden">
+<div class="card">
+<h3>成绩记录</h3>
+<div id="all-records-list" class="mt8"></div>
+</div>
+</div>
+
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<div id="modal-bg" class="modal-bg hidden" onclick="closeModalBg(event)">
+<div class="modal" id="modal-content"></div>
+</div>
+
+<script>
+// ==================== State ====================
+let S = {
+    role: null, family_id: null, family_name: null,
+    child_id: null, child_name: null, grade: 7,
+    loginRole: 'parent',
+    config: { default_replay_limit: 5 },
+    entryCode: null, entrySession: null,
+    checkedWords: [], generatedWords: [],
+    dict: { words: [], idx: 0, mode: 'blind', replays: 0, maxReplay: 5 },
+    selectedUnits: new Set(),
+    selectedLessons: new Set(),
+    dictChildId: null
+};
+
+// ==================== API ====================
+const API_BASE = 'https://1256784020-ca9zcay6yh.ap-guangzhou.tencentscf.com';
+async function api(path, data = {}) {
+    try {
+        const resp = await fetch(API_BASE + '/api/' + path, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        return await resp.json();
+    } catch (e) {
+        return { code: -1, msg: '网络错误: ' + e.message };
+    }
+}
+async function apiGet(path) {
+    try {
+        const resp = await fetch(API_BASE + '/api/' + path);
+        return await resp.json();
+    } catch (e) {
+        return { code: -1, msg: '网络错误: ' + e.message };
+    }
+}
+async function apiDel(path) {
+    try {
+        const resp = await fetch(API_BASE + '/api/' + path, { method: 'DELETE' });
+        return await resp.json();
+    } catch (e) {
+        return { code: -1, msg: '网络错误: ' + e.message };
+    }
+}
+
+// ==================== TTS ====================
+let ttsVoices = [];
+function initTTS() {
+    function load() { ttsVoices = speechSynthesis.getVoices(); }
+    load();
+    if (speechSynthesis.onvoiceschanged !== undefined)
+        speechSynthesis.onvoiceschanged = load;
+}
+function speak(word) {
+    if (!speechSynthesis) { showToast('浏览器不支持语音播放', 'err'); return; }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(word);
+    u.lang = 'en-GB';
+    u.rate = 0.9;
+    const v = ttsVoices.find(v => v.lang === 'en-GB') || ttsVoices.find(v => v.lang.startsWith('en'));
+    if (v) u.voice = v;
+    speechSynthesis.speak(u);
+}
+
+// ==================== Utils ====================
+function showView(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+    const el = document.getElementById('view-' + name);
+    if (el) el.classList.remove('hidden');
+}
+function showToast(msg, type = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast' + (type ? ' ' + type : '');
+    setTimeout(() => t.classList.add('hidden'), 2800);
+}
+function fmtDate(ts) {
+    const d = new Date(ts * 1000);
+    return `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function showModal(html) {
+    document.getElementById('modal-content').innerHTML = html;
+    document.getElementById('modal-bg').classList.remove('hidden');
+}
+function closeModal() {
+    document.getElementById('modal-bg').classList.add('hidden');
+}
+function closeModalBg(e) {
+    if (e.target.id === 'modal-bg') closeModal();
+}
+function esc(s) {
+    if (!s) return '';
+    return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+// ==================== Init ====================
+function init() {
+    initTTS();
+    const params = new URLSearchParams(location.search);
+    const fid = params.get('family');
+    if (fid) {
+        S.family_id = fid;
+        document.getElementById('login-family-id').value = fid;
+        document.getElementById('login-family-id2').value = fid;
+        document.getElementById('login-family-section').classList.remove('hidden');
+        document.getElementById('login-admin-section').classList.add('hidden');
+    } else {
+        document.getElementById('login-family-section').classList.add('hidden');
+        document.getElementById('login-admin-section').classList.remove('hidden');
+    }
+
+    // Auto-login from localStorage
+    const sess = localStorage.getItem('wdb_session');
+    if (sess) {
+        try {
+            const s = JSON.parse(sess);
+            S.role = s.role; S.family_id = s.family_id;
+            S.family_name = s.family_name; S.child_id = s.child_id;
+            S.child_name = s.child_name; S.grade = s.grade || 7;
+            enterApp();
+        } catch (e) { localStorage.removeItem('wdb_session'); }
+    }
+}
+
+// ==================== Login ====================
+function switchLoginRole(role) {
+    S.loginRole = role;
+    if (role === 'admin' || role === 'family-url') {
+        document.querySelectorAll('[data-role]').forEach(t => t.classList.remove('active'));
+        document.querySelector(`[data-role="${role}"]`).classList.add('active');
+        document.getElementById('login-admin').classList.toggle('hidden', role !== 'admin');
+        document.getElementById('login-family-url').classList.toggle('hidden', role !== 'family-url');
+        return;
+    }
+    document.querySelectorAll('#login-family-section [data-role]').forEach(t => t.classList.remove('active'));
+    document.querySelector(`#login-family-section [data-role="${role}"]`).classList.add('active');
+    document.getElementById('login-parent').classList.toggle('hidden', role !== 'parent');
+    document.getElementById('login-child').classList.toggle('hidden', role !== 'child');
+    document.getElementById('login-code').classList.toggle('hidden', role !== 'code');
+}
+
+function setFamilyId() {
+    const fid = document.getElementById('login-enter-family').value.trim();
+    if (!fid) { showToast('请输入家庭ID', 'err'); return; }
+    S.family_id = fid;
+    localStorage.setItem('wdb_fid', fid);
+    const url = new URL(location.href);
+    url.searchParams.set('family', fid);
+    history.replaceState({}, '', url);
+    document.getElementById('login-family-id').value = fid;
+    document.getElementById('login-family-id2').value = fid;
+    document.getElementById('login-family-section').classList.remove('hidden');
+    document.getElementById('login-admin-section').classList.add('hidden');
+    showToast('已设置家庭ID');
+}
+
+async function doLogin(role) {
+    const password = role === 'admin'
+        ? document.getElementById('login-admin-pwd').value
+        : role === 'parent'
+            ? document.getElementById('login-parent-pwd').value
+            : document.getElementById('login-child-pwd').value;
+
+    if (!password) { showToast('请输入密码', 'err'); return; }
+
+    const r = await api('login', { role, password, family_id: S.family_id });
+    if (r.code !== 0) { showToast(r.msg, 'err'); return; }
+
+    S.role = r.data.role;
+    if (r.data.family_id) S.family_id = r.data.family_id;
+    S.family_name = r.data.family_name || '';
+    if (r.data.child_id) { S.child_id = r.data.child_id; S.child_name = r.data.child_name; S.grade = r.data.grade || 7; }
+
+    localStorage.setItem('wdb_session', JSON.stringify({
+        role: S.role, family_id: S.family_id, family_name: S.family_name,
+        child_id: S.child_id, child_name: S.child_name, grade: S.grade
+    }));
+    if (S.family_id) localStorage.setItem('wdb_fid', S.family_id);
+
+    enterApp();
+}
+
+async function doEntryCodeLogin() {
+    const code = document.getElementById('login-code-input').value.trim();
+    if (code.length !== 4) { showToast('请输入4位录入码', 'err'); return; }
+    const r = await api('session/validate', { code });
+    if (r.code !== 0) { showToast(r.msg, 'err'); return; }
+    S.entryCode = code;
+    S.entrySession = r.data;
+    S.family_id = r.data.family_id;
+    enterEntry();
+}
+
+function enterApp() {
+    document.getElementById('nav-logout').classList.remove('hidden');
+    document.getElementById('nav-user').classList.remove('hidden');
+    document.getElementById('nav-user').textContent = S.family_name || '超管';
+    if (S.role === 'admin') { loadAdmin(); showView('admin'); }
+    else if (S.role === 'parent') { loadParent(); showView('parent'); }
+    else if (S.role === 'child') { loadChild(); showView('child'); }
+}
+
+function logout() {
+    localStorage.removeItem('wdb_session');
+    S = { role: null, family_id: S.family_id, family_name: null, loginRole: 'parent',
+          config: { default_replay_limit: 5 }, entryCode: null, entrySession: null,
+          checkedWords: [], generatedWords: [],
+          dict: { words: [], idx: 0, mode: 'blind', replays: 0, maxReplay: 5 },
+          selectedUnits: new Set(), selectedLessons: new Set(), dictChildId: null };
+    document.getElementById('nav-logout').classList.add('hidden');
+    document.getElementById('nav-user').classList.add('hidden');
+    showView('login');
+}
+
+// ==================== Admin ====================
+function switchAdminTab(tab) {
+    document.querySelectorAll('[data-atab]').forEach(t => t.classList.remove('active'));
+    document.querySelector(`[data-atab="${tab}"]`).classList.add('active');
+    document.getElementById('atab-families').classList.toggle('hidden', tab !== 'families');
+    document.getElementById('atab-config').classList.toggle('hidden', tab !== 'config');
+    document.getElementById('atab-usage').classList.toggle('hidden', tab !== 'usage');
+    if (tab === 'config') loadConfig();
+    if (tab === 'usage') loadUsage();
+}
+
+async function loadAdmin() {
+    loadFamilies();
+    loadConfig();
+}
+
+async function loadFamilies() {
+    const r = await apiGet('families');
+    const el = document.getElementById('family-list');
+    if (r.code !== 0 || !r.data || !r.data.length) {
+        el.innerHTML = '<div class="empty"><p>暂无家庭</p></div>';
+        return;
+    }
+    el.innerHTML = r.data.map(f => `
+        <div class="list-item">
+            <div class="li-main">
+                <div class="li-title">${esc(f.family_name)}</div>
+                <div class="li-sub">ID: ${f.family_id} · ${fmtDate(f.created_at)}</div>
+            </div>
+            <button class="btn btn-sec btn-sm" onclick="copyFamilyUrl('${f.family_id}')">复制链接</button>
+        </div>
+    `).join('');
+}
+
+function copyFamilyUrl(fid) {
+    const url = location.origin + location.pathname + '?family=' + fid;
+    navigator.clipboard.writeText(url).then(
+        () => showToast('链接已复制', 'ok'),
+        () => showToast(url, '')
+    );
+}
+
+async function createFamily() {
+    const name = document.getElementById('new-family-name').value.trim();
+    const parent = document.getElementById('new-parent-name').value.trim();
+    const pwd = document.getElementById('new-family-pwd').value;
+    if (!name || !pwd) { showToast('家庭名称和密码不能为空', 'err'); return; }
+    const r = await api('families', { family_name: name, parent_name: parent || '家长', password: pwd });
+    if (r.code !== 0) { showToast(r.msg, 'err'); return; }
+    showToast('家庭创建成功', 'ok');
+    document.getElementById('new-family-name').value = '';
+    document.getElementById('new-parent-name').value = '';
+    document.getElementById('new-family-pwd').value = '';
+    loadFamilies();
+}
+
+async function loadConfig() {
+    const r = await apiGet('config');
+    if (r.code === 0) {
+        S.config = r.data;
+        document.getElementById('cfg-replay').value = r.data.default_replay_limit || 5;
+        document.getElementById('cfg-replay-p').value = r.data.default_replay_limit || 5;
+        document.getElementById('sys-info').innerHTML = `词库状态: ${r.data.created_at ? '已初始化' : '未初始化'}<br>TTS: 浏览器内置 (en-GB)`;
+    }
+}
+
+async function saveConfig() {
+    const v = parseInt(document.getElementById('cfg-replay').value);
+    if (v < 1 || v > 99) { showToast('次数应在1-99之间', 'err'); return; }
+    const r = await api('config', { default_replay_limit: v });
+    if (r.code === 0) { S.config = r.data; showToast('配置已保存', 'ok'); }
+    else showToast(r.msg, 'err');
+}
+
+async function loadUsage() {
+    const el = document.getElementById('usage-content');
+    el.innerHTML = '<div class="card"><p class="muted">加载中...</p></div>';
+    const r = await apiGet('usage');
+    if (r.code !== 0) { el.innerHTML = `<div class="card"><p class="err">${esc(r.msg)}</p></div>`; return; }
+    const d = r.data;
+    const calls = d.ai_calls || {};
+    const totalCalls = Object.values(calls).reduce((a,b) => a+b, 0);
+    const typeLabels = {check:'拼写校验', generate:'内容生成', training:'特训生成', init_vocab:'词库初始化', general:'其他'};
+    let html = '';
+
+    // Summary cards
+    html += '<div class="card"><h3>AI 调用概览</h3><div class="mt8" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+    html += `<div class="stat-box"><div class="stat-num">${totalCalls}</div><div class="stat-label">总调用次数</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num">${d.ai_errors || 0}</div><div class="stat-label">调用失败</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num">${(d.total_prompt_tokens||0).toLocaleString()}</div><div class="stat-label">输入 Tokens</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num">${(d.total_completion_tokens||0).toLocaleString()}</div><div class="stat-label">输出 Tokens</div></div>`;
+    html += '</div>';
+    if (d.first_call) {
+        html += `<div class="muted sm mt8">首次调用: ${fmtDate(d.first_call)} · 最后调用: ${d.last_call ? fmtDate(d.last_call) : '无'}</div>`;
+    } else {
+        html += '<div class="muted sm mt8">尚未有 AI 调用记录</div>';
+    }
+    html += '</div>';
+
+    // Breakdown by type
+    if (totalCalls > 0) {
+        html += '<div class="card"><h3>按类型统计</h3><div class="mt8">';
+        for (const [type, count] of Object.entries(calls)) {
+            if (count === 0) continue;
+            const pct = totalCalls > 0 ? Math.round(count/totalCalls*100) : 0;
+            html += `<div class="bar-row"><span>${typeLabels[type]||type}</span>`;
+            html += `<div class="bar-track"><div class="bar-fill" style="width:${pct}%"></div></div>`;
+            html += `<span class="bar-val">${count}</span></div>`;
+        }
+        html += '</div></div>';
+    }
+
+    // Recent calls
+    const recent = (d.recent||[]).slice(-20).reverse();
+    if (recent.length > 0) {
+        html += '<div class="card"><h3>最近调用（最新20条）</h3>';
+        html += '<table class="usage-table"><thead><tr><th>时间</th><th>事件</th><th>类型</th><th>详情</th></tr></thead><tbody>';
+        for (const e of recent) {
+            const evLabel = {ai_call:'调用', ai_error:'失败', ai_skip:'跳过'}[e.event] || e.event;
+            const typeLabel = typeLabels[e.type] || e.type;
+            let detail = '';
+            if (e.prompt_tokens) detail = `in:${e.prompt_tokens} out:${e.completion_tokens}`;
+            else if (e.error) detail = esc(e.error.substring(0,40));
+            else if (e.reason) detail = esc(e.reason);
+            html += `<tr><td>${fmtDate(e.ts)}</td><td>${evLabel}</td><td>${typeLabel}</td><td class="muted sm">${detail}</td></tr>`;
+        }
+        html += '</tbody></table></div>';
+    }
+
+    el.innerHTML = html || '<div class="card"><p class="muted">暂无用量数据</p></div>';
+}
+
+// ==================== Parent ====================
+function switchParentTab(tab) {
+    document.querySelectorAll('[data-ptab]').forEach(t => t.classList.remove('active'));
+    document.querySelector(`[data-ptab="${tab}"]`).classList.add('active');
+    ['children','units','records','settings'].forEach(t =>
+        document.getElementById('ptab-' + t).classList.toggle('hidden', t !== tab));
+    if (tab === 'children') loadChildren();
+    if (tab === 'units') loadUnits();
+    if (tab === 'records') loadRecords();
+}
+
+async function loadParent() {
+    loadChildren();
+    loadConfig();
+}
+
+async function loadChildren() {
+    const r = await apiGet('children?family_id=' + S.family_id);
+    const el = document.getElementById('child-list');
+    const ecArea = document.getElementById('entry-code-area');
+    if (r.code !== 0 || !r.data || !r.data.length) {
+        el.innerHTML = '<div class="empty"><p>暂无孩子，点击添加</p></div>';
+        ecArea.innerHTML = '<p class="muted sm">请先添加孩子</p>';
+        return;
+    }
+    el.innerHTML = r.data.map(c => `
+        <div class="list-item">
+            <div class="li-main">
+                <div class="li-title">${esc(c.name)} <span class="tag tag-gray">${c.grade}年级</span></div>
+                <div class="li-sub">添加于 ${fmtDate(c.created_at)}</div>
+            </div>
+            <div class="row gap4">
+                <button class="btn btn-sec btn-sm" onclick="genEntryCode('${c.child_id}')">录入码</button>
+                <button class="btn btn-err btn-sm" onclick="deleteChild('${c.child_id}')">删除</button>
+            </div>
+        </div>
+    `).join('');
+
+    // Populate record filter
+    const filter = document.getElementById('record-filter');
+    filter.innerHTML = '<option value="">全部孩子</option>' + r.data.map(c =>
+        `<option value="${c.child_id}">${esc(c.name)}</option>`).join('');
+
+    ecArea.innerHTML = '<p class="muted sm">点击孩子右侧"录入码"按钮生成</p>';
+}
+
+function showAddChildModal() {
+    showModal(`
+        <div class="modal-h"><h3>添加孩子</h3><button class="close" onclick="closeModal()">&times;</button></div>
+        <div class="col gap8">
+            <div><label>姓名</label><input id="modal-child-name" placeholder="孩子姓名"></div>
+            <div><label>年级</label>
+                <select id="modal-child-grade">
+                    <option value="6">6年级</option><option value="7" selected>7年级</option>
+                    <option value="8">8年级</option><option value="9">9年级</option>
+                </select>
+            </div>
+            <div><label>密码（用于孩子登录听写）</label><input id="modal-child-pwd" type="password" placeholder="设置密码"></div>
+            <button class="btn btn-primary btn-block mt8" onclick="addChild()">添加</button>
+        </div>
+    `);
+}
+
+async function addChild() {
+    const name = document.getElementById('modal-child-name').value.trim();
+    const grade = parseInt(document.getElementById('modal-child-grade').value);
+    const pwd = document.getElementById('modal-child-pwd').value;
+    if (!name || !pwd) { showToast('姓名和密码不能为空', 'err'); return; }
+    const r = await api('children', { family_id: S.family_id, name, grade, password: pwd });
+    if (r.code !== 0) { showToast(r.msg, 'err'); return; }
+    showToast('孩子添加成功', 'ok');
+    closeModal();
+    loadChildren();
+}
+
+async function deleteChild(cid) {
+    if (!confirm('确定删除这个孩子？相关成绩也会保留。')) return;
+    const r = await apiDel('children/' + cid + '?family_id=' + S.family_id);
+    if (r.code === 0) { showToast('已删除', 'ok'); loadChildren(); }
+    else showToast(r.msg, 'err');
+}
+
+async function genEntryCode(cid) {
+    const r = await api('entry-code', { family_id: S.family_id, child_id: cid });
+    if (r.code !== 0) { showToast(r.msg, 'err'); return; }
+    showModal(`
+        <div class="modal-h"><h3>录入码已生成</h3><button class="close" onclick="closeModal()">&times;</button></div>
+        <div class="tc" style="padding:20px 0">
+            <div style="font-size:56px;font-weight:700;color:var(--pri);letter-spacing:12px">${r.data.code}</div>
+            <p class="muted mt8">有效期至 ${fmtDate(r.data.expires_at)}</p>
+            <p class="muted sm mt8">让孩子在录入码登录页输入此码</p>
+        </div>
+        <button class="btn btn-sec btn-block" onclick="copyCode('${r.data.code}')">复制录入码</button>
+    `);
+}
+
+function copyCode(code) {
+    navigator.clipboard.writeText(code).then(() => showToast('已复制', 'ok'));
+}
+
+async function loadUnits() {
+    const r = await apiGet('units?family_id=' + S.family_id);
+    const el = document.getElementById('unit-list');
+    if (r.code !== 0 || !r.data || !r.data.length) {
+        el.innerHTML = '<div class="empty"><p>暂无单词单元</p><p class="sm">点击"特训"生成AI单词单元，或让孩子通过录入码录入</p></div>';
+        return;
+    }
+    el.innerHTML = r.data.map(u => {
+        const statusTag = u.status === 'draft' ? '<span class="tag tag-warn">草稿</span>'
+            : u.status === 'locked' ? '<span class="tag tag-gray">已锁定</span>'
+            : '<span class="tag tag-ok">待听写</span>';
+        return `
+        <div class="list-item">
+            <div class="li-main" onclick="viewUnit('${u.unit_id}')" style="cursor:pointer">
+                <div class="li-title">${esc(u.title)} ${statusTag}</div>
+                <div class="li-sub">${u.word_count}词 · ${u.type === 'training' ? 'AI特训' : '手动录入'} · ${fmtDate(u.created_at)}${u.child_name ? ' · ' + esc(u.child_name) : ''}</div>
+            </div>
+            <div class="row gap4">
+                <button class="btn btn-sec btn-sm" onclick="startDictForUnit('${u.unit_id}')">听写</button>
+                <button class="btn btn-err btn-sm" onclick="deleteUnit('${u.unit_id}')">删除</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+let vocabStructure = null;
+
+function showTrainingModal() {
+    showModal(`
+        <div class="modal-h"><h3>生成暑期特训</h3><button class="close" onclick="closeModal()">&times;</button></div>
+        <div class="col gap8">
+            <div><label>年级</label>
+                <select id="modal-grade" onchange="onTrainingGradeChange()">
+                    <option value="6">6年级</option><option value="7" selected>7年级</option>
+                    <option value="8">8年级</option><option value="9">9年级</option>
+                </select>
+            </div>
+            <div>
+                <label>选词范围</label>
+                <div class="row" style="gap:12px;flex-wrap:wrap">
+                    <label style="display:flex;align-items:center;gap:4px;font-size:16px;color:var(--text);font-weight:400">
+                        <input type="radio" name="scope" value="grade" checked style="width:auto" onchange="onScopeChange()"> 整个年级随机
+                    </label>
+                    <label style="display:flex;align-items:center;gap:4px;font-size:16px;color:var(--text);font-weight:400">
+                        <input type="radio" name="scope" value="unit" style="width:auto" onchange="onScopeChange()"> 按单元/课文
+                    </label>
+                </div>
+            </div>
+            <div id="scope-grade" class="col gap8">
+                <div><label>单词数量（1-50）</label><input id="modal-count" type="number" value="5" min="1" max="50"></div>
+            </div>
+            <div id="scope-unit" class="col gap8 hidden">
+                <div id="structure-loading" class="muted tc" style="padding:16px">加载词库结构中...</div>
+                <div id="structure-content" class="hidden col gap8">
+                    <div><label>选择单元</label>
+                        <select id="modal-unit" onchange="onTrainingUnitChange()"></select>
+                    </div>
+                    <div id="lesson-list-container" class="hidden">
+                        <label>选择课文（可多选，不选=整单元全部）</label>
+                        <div id="lesson-list"></div>
+                    </div>
+                    <div><label>单词数量上限（1-50）</label><input id="modal-count-unit" type="number" value="10" min="1" max="50"></div>
+                </div>
+            </div>
+            <button class="btn btn-primary btn-block mt8" onclick="generateTraining()">生成</button>
+        </div>
+    `);
+}
+
+async function onScopeChange() {
+    const scope = document.querySelector('input[name="scope"]:checked').value;
+    document.getElementById('scope-grade').classList.toggle('hidden', scope !== 'grade');
+    document.getElementById('scope-unit').classList.toggle('hidden', scope !== 'unit');
+    if (scope === 'unit') {
+        const grade = parseInt(document.getElementById('modal-grade').value);
+        await loadVocabStructure(grade);
+    }
+}
+
+async function onTrainingGradeChange() {
+    const scope = document.querySelector('input[name="scope"]:checked');
+    if (scope && scope.value === 'unit') {
+        const grade = parseInt(document.getElementById('modal-grade').value);
+        vocabStructure = null;
+        await loadVocabStructure(grade);
+    }
+}
+
+async function loadVocabStructure(grade) {
+    const loading = document.getElementById('structure-loading');
+    const content = document.getElementById('structure-content');
+    if (loading) { loading.classList.remove('hidden'); loading.textContent = '加载词库结构中...'; }
+    if (content) content.classList.add('hidden');
+
+    const r = await apiGet('vocab/structure?grade=' + grade);
+    if (r.code !== 0 || !r.data || !r.data.units || !r.data.units.length) {
+        if (loading) loading.innerHTML = '词库尚未结构化<br><button class="btn btn-primary btn-sm mt8" onclick="initStructure(' + grade + ')">点击AI结构化</button>';
+        return;
+    }
+
+    vocabStructure = r.data;
+    if (loading) loading.classList.add('hidden');
+    if (content) content.classList.remove('hidden');
+
+    const unitSel = document.getElementById('modal-unit');
+    if (unitSel) {
+        unitSel.innerHTML = '<option value="">选择单元...</option>' + r.data.units.map(u =>
+            `<option value="${u.unit_id}">${esc(u.unit_name)} (${u.word_count}词)</option>`).join('');
+    }
+    const llc = document.getElementById('lesson-list-container');
+    if (llc) llc.classList.add('hidden');
+    S.selectedLessons = new Set();
+}
+
+async function initStructure(grade) {
+    const loading = document.getElementById('structure-loading');
+    if (loading) loading.innerHTML = 'AI正在按教材结构化词库，约需30秒...';
+    const r = await api('vocab/init-structure', { grade });
+    if (r.code !== 0) {
+        if (loading) loading.innerHTML = '初始化失败：' + esc(r.msg) + '<br><button class="btn btn-sec btn-sm mt8" onclick="initStructure(' + grade + ')">重试</button>';
+        return;
+    }
+    showToast('词库结构化完成', 'ok');
+    await loadVocabStructure(grade);
+}
+
+function onTrainingUnitChange() {
+    const unitId = parseInt(document.getElementById('modal-unit').value);
+    const llc = document.getElementById('lesson-list-container');
+    if (!unitId || !vocabStructure) { if (llc) llc.classList.add('hidden'); return; }
+    const unit = vocabStructure.units.find(u => u.unit_id === unitId);
+    if (!unit) return;
+
+    if (llc) llc.classList.remove('hidden');
+    const el = document.getElementById('lesson-list');
+    if (el) {
+        el.innerHTML = unit.lessons.map(l => `
+            <label class="unit-checkbox" onclick="toggleLesson('${l.lesson_id}', this)">
+                <input type="checkbox">
+                <div>
+                    <div class="li-title">${esc(l.lesson_name)}</div>
+                    <div class="li-sub">${l.word_count}词</div>
+                </div>
+            </label>
+        `).join('');
+    }
+    S.selectedLessons = new Set();
+}
+
+function toggleLesson(lid, el) {
+    if (S.selectedLessons.has(lid)) { S.selectedLessons.delete(lid); el.classList.remove('active'); }
+    else { S.selectedLessons.add(lid); el.classList.add('active'); }
+    el.querySelector('input').checked = S.selectedLessons.has(lid);
+}
+
+async function generateTraining() {
+    const grade = parseInt(document.getElementById('modal-grade').value);
+    const scope = document.querySelector('input[name="scope"]:checked').value;
+
+    let params = { grade };
+
+    if (scope === 'grade') {
+        params.count = parseInt(document.getElementById('modal-count').value);
+    } else {
+        const unitId = parseInt(document.getElementById('modal-unit').value);
+        if (!unitId) { showToast('请选择单元', 'err'); return; }
+        params.unit_id = unitId;
+        params.count = parseInt(document.getElementById('modal-count-unit').value);
+        if (S.selectedLessons && S.selectedLessons.size > 0) {
+            params.lesson_ids = [...S.selectedLessons].map(id => parseInt(id));
+        }
+    }
+
+    closeModal();
+    showToast('AI生成中，请稍候...');
+    const r = await api('ai/training', params);
+    if (r.code !== 0) { showToast(r.msg, 'err'); return; }
+    // Save as unit
+    const r2 = await api('units', {
+        family_id: S.family_id,
+        title: r.data.title,
+        type: 'training',
+        grade,
+        status: 'pending',
+        words: r.data.words
+    });
+    if (r2.code === 0) { showToast('特训单元已生成', 'ok'); loadUnits(); }
+    else showToast(r2.msg, 'err');
+}
+
+async function viewUnit(uid) {
+    const r = await apiGet('units/' + uid + '?family_id=' + S.family_id);
+    if (r.code !== 0) { showToast(r.msg, 'err'); return; }
+    const u = r.data;
+    const wordsHtml = (u.words || []).map((w, i) => `
+        <div class="word-card">
+            <div class="w-head">
+                <span class="w-word">${i+1}. ${esc(w.word)}</span>
+                <button class="btn btn-sec btn-sm" onclick="speak('${esc(w.word)}')">播放</button>
+            </div>
+            <div class="w-pho">${esc(w.phonetic || '')}</div>
+            <div class="w-tr">${esc(w.translation || '')}</div>
+            <div class="w-st">${esc(w.sentence || '')}</div>
+        </div>
+    `).join('');
+    showModal(`
+        <div class="modal-h"><h3>${esc(u.title)}</h3><button class="close" onclick="closeModal()">&times;</button></div>
+        <p class="muted sm mb8">${u.words.length}词 · ${u.type === 'training' ? 'AI特训' : '手动录入'} · ${fmtDate(u.created_at)}</p>
+        ${wordsHtml}
+    `);
+}
+
+async function deleteUnit(uid) {
+    if (!confirm('确定删除这个单元？')) return;
+    const r = await apiDel('units/' + uid + '?family_id=' + S.family_id);
+    if (r.code === 0) { showToast('已删除', 'ok'); loadUnits(); }
+    else showToast(r.msg, 'err');
+}
+
+function startDictForUnit(uid) {
+    S.selectedUnits = new Set([uid]);
+    showView('dict-setup');
+    loadDictSetup();
+    document.getElementById('dict-child-select').value = '';
+}
+
+async function loadRecords() {
+    const filter = document.getElementById('record-filter').value;
+    let url = 'records?family_id=' + S.family_id;
+    if (filter) url += '&child_id=' + filter;
+    const r = await apiGet(url);
+    const el = document.getElementById('record-list');
+    if (r.code !== 0 || !r.data || !r.data.length) {
+        el.innerHTML = '<div class="empty"><p>暂无成绩记录</p></div>';
+        return;
+    }
+    el.innerHTML = r.data.map(rec => {
+        const cls = rec.percentage >= 60 ? 'score-pass' : 'score-fail';
+        return `
+        <div class="list-item">
+            <div class="li-main">
+                <div class="li-title">${esc(rec.child_name)} <span class="score-big ${cls}" style="font-size:16px">${rec.percentage}分</span></div>
+                <div class="li-sub">${rec.correct_count}/${rec.total} · ${rec.mode === 'blind' ? '盲听' : '读听'} · ${fmtDate(rec.created_at)}</div>
+            </div>
+            <div class="row gap4">
+                <button class="btn btn-sec btn-sm" onclick="retest('${rec.record_id}')">重测</button>
+                <button class="btn btn-err btn-sm" onclick="deleteRecord('${rec.record_id}')">删除</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+async function deleteRecord(rid) {
+    if (!confirm('确定删除这条成绩？')) return;
+    const r = await apiDel('records/' + rid + '?family_id=' + S.family_id);
+    if (r.code === 0) { showToast('已删除', 'ok'); loadRecords(); }
+    else showToast(r.msg, 'err');
+}
+
+async function retest(rid) {
+    const filter = document.getElementById('record-filter').value;
+    let url = 'records?family_id=' + S.family_id;
+    if (filter) url += '&child_id=' + filter;
+    const r = await apiGet(url);
+    if (r.code !== 0) { showToast(r.msg, 'err'); return; }
+    const rec = r.data.find(r => r.record_id === rid);
+    if (!rec) { showToast('记录不存在', 'err'); return; }
+    // Start dictation with the same words
+    S.dict.words = rec.words || [];
+    S.dict.idx = 0;
+    S.dict.mode = rec.mode || 'blind';
+    S.dict.replays = 0;
+    S.dict.maxReplay = S.config.default_replay_limit || 5;
+    S.dictChildId = rec.child_id;
+    S.dictChildName = rec.child_name;
+    S.dictUnitIds = rec.unit_ids || [];
+    showView('dictation');
+    renderDictation();
+}
+
+async function changePwd() {
+    const oldPwd = document.getElementById('old-pwd').value;
+    const newPwd = document.getElementById('new-pwd').value;
+    if (!oldPwd || !newPwd) { showToast('请填写完整', 'err'); return; }
+    const r = await api('change-password', {
+        family_id: S.family_id, old_password: oldPwd,
+        new_password: newPwd, user_type: 'parent'
+    });
+    if (r.code === 0) {
+        showToast('密码修改成功', 'ok');
+        document.getElementById('old-pwd').value = '';
+        document.getElementById('new-pwd').value = '';
+    } else showToast(r.msg, 'err');
+}
+
+// ==================== Dictation Setup (Parent) ====================
+async function loadDictSetup() {
+    // Load children
+    const rc = await apiGet('children?family_id=' + S.family_id);
+    const sel = document.getElementById('dict-child-select');
+    if (rc.code === 0 && rc.data) {
+        sel.innerHTML = '<option value="">选择孩子...</option>' + rc.data.map(c =>
+            `<option value="${c.child_id}">${esc(c.name)}</option>`).join('');
+    }
+    // Load units
+    const ru = await apiGet('units?family_id=' + S.family_id);
+    const el = document.getElementById('dict-unit-list');
+    if (ru.code !== 0 || !ru.data || !ru.data.length) {
+        el.innerHTML = '<p class="muted sm">暂无可用单元</p>';
+        return;
+    }
+    el.innerHTML = ru.data.filter(u => u.status !== 'draft').map(u => `
+        <label class="unit-checkbox ${S.selectedUnits.has(u.unit_id) ? 'active' : ''}" onclick="toggleUnit('${u.unit_id}', this)">
+            <input type="checkbox" ${S.selectedUnits.has(u.unit_id) ? 'checked' : ''}>
+            <div>
+                <div class="li-title">${esc(u.title)}</div>
+                <div class="li-sub">${u.word_count}词</div>
+            </div>
+        </label>
+    `).join('');
+}
+
+function toggleUnit(uid, el) {
+    if (S.selectedUnits.has(uid)) { S.selectedUnits.delete(uid); el.classList.remove('active'); }
+    else { S.selectedUnits.add(uid); el.classList.add('active'); }
+    el.querySelector('input').checked = S.selectedUnits.has(uid);
+}
+
+async function startDictationP() {
+    const childId = document.getElementById('dict-child-select').value;
+    if (!childId) { showToast('请选择孩子', 'err'); return; }
+    if (S.selectedUnits.size === 0) { showToast('请选择至少一个单元', 'err'); return; }
+
+    // Fetch all selected units' words
+    let allWords = [];
+    for (const uid of S.selectedUnits) {
+        const r = await apiGet('units/' + uid + '?family_id=' + S.family_id);
+        if (r.code === 0) allWords = allWords.concat(r.data.words || []);
+    }
+    if (!allWords.length) { showToast('没有可听写的单词', 'err'); return; }
+
+    // Shuffle
+    for (let i = allWords.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [allWords[i], allWords[j]] = [allWords[j], allWords[i]];
+    }
+
+    const mode = document.querySelector('input[name="dmode-p"]:checked').value;
+    S.dict.words = allWords;
+    S.dict.idx = 0;
+    S.dict.mode = mode;
+    S.dict.replays = 0;
+    S.dict.maxReplay = S.config.default_replay_limit || 5;
+    S.dictChildId = childId;
+    const rc = await apiGet('children?family_id=' + S.family_id);
+    if (rc.code === 0) {
+        const c = rc.data.find(c => c.child_id === childId);
+        S.dictChildName = c ? c.name : '';
+    }
+    S.dictUnitIds = [...S.selectedUnits];
+    showView('dictation');
+    renderDictation();
+}
+
+// ==================== Child Dashboard ====================
+function switchChildTab(tab) {
+    document.querySelectorAll('[data-ctab]').forEach(t => t.classList.remove('active'));
+    document.querySelector(`[data-ctab="${tab}"]`).classList.add('active');
+    document.getElementById('ctab-dict').classList.toggle('hidden', tab !== 'dict');
+    document.getElementById('ctab-records').classList.toggle('hidden', tab !== 'records');
+    if (tab === 'records') loadChildRecords();
+}
+
+async function loadChild() {
+    loadChildUnits();
+}
+
+async function loadChildUnits() {
+    const r = await apiGet('units?family_id=' + S.family_id);
+    const el = document.getElementById('child-unit-list');
+    if (r.code !== 0 || !r.data || !r.data.length) {
+        el.innerHTML = '<div class="empty"><p>暂无单词单元</p></div>';
+        return;
+    }
+    S.selectedUnits = new Set();
+    el.innerHTML = r.data.filter(u => u.status === 'pending' || u.status === 'locked').map(u => `
+        <label class="unit-checkbox" onclick="toggleUnit('${u.unit_id}', this)">
+            <input type="checkbox">
+            <div>
+                <div class="li-title">${esc(u.title)}</div>
+                <div class="li-sub">${u.word_count}词</div>
+            </div>
+        </label>
+    `).join('');
+}
+
+async function startDictation() {
+    if (S.selectedUnits.size === 0) { showToast('请选择至少一个单元', 'err'); return; }
+    let allWords = [];
+    for (const uid of S.selectedUnits) {
+        const r = await apiGet('units/' + uid + '?family_id=' + S.family_id);
+        if (r.code === 0) allWords = allWords.concat(r.data.words || []);
+    }
+    if (!allWords.length) { showToast('没有可听写的单词', 'err'); return; }
+    for (let i = allWords.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [allWords[i], allWords[j]] = [allWords[j], allWords[i]];
+    }
+    const mode = document.querySelector('input[name="dmode"]:checked').value;
+    S.dict.words = allWords;
+    S.dict.idx = 0;
+    S.dict.mode = mode;
+    S.dict.replays = 0;
+    S.dict.maxReplay = S.config.default_replay_limit || 5;
+    S.dictChildId = S.child_id;
+    S.dictChildName = S.child_name;
+    S.dictUnitIds = [...S.selectedUnits];
+    showView('dictation');
+    renderDictation();
+}
+
+async function loadChildRecords() {
+    const r = await apiGet('records?family_id=' + S.family_id + '&child_id=' + S.child_id);
+    const el = document.getElementById('child-record-list');
+    if (r.code !== 0 || !r.data || !r.data.length) {
+        el.innerHTML = '<div class="empty"><p>暂无成绩记录</p></div>';
+        return;
+    }
+    el.innerHTML = r.data.map(rec => {
+        const cls = rec.percentage >= 60 ? 'score-pass' : 'score-fail';
+        return `
+        <div class="list-item">
+            <div class="li-main">
+                <div class="li-title"><span class="score-big ${cls}" style="font-size:16px">${rec.percentage}分</span></div>
+                <div class="li-sub">${rec.correct_count}/${rec.total} · ${rec.mode === 'blind' ? '盲听' : '读听'} · ${fmtDate(rec.created_at)}</div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ==================== Dictation ====================
+function renderDictation() {
+    const d = S.dict;
+    const w = d.words[d.idx];
+    if (!w) { endDictation(); return; }
+
+    // Progress dots
+    const dots = d.words.map((_, i) =>
+        `<div class="dot ${i < d.idx ? 'done' : ''} ${i === d.idx ? 'cur' : ''}"></div>`
+    ).join('');
+    document.getElementById('dict-progress').innerHTML = dots;
+
+    if (d.mode === 'blind') {
+        document.getElementById('dict-blind').classList.remove('hidden');
+        document.getElementById('dict-reading').classList.add('hidden');
+        document.getElementById('dict-num').textContent = `${d.idx + 1}`;
+        d.replays = 0;
+        updateReplayBtn();
+        setTimeout(() => speak(w.word), 300);
+    } else {
+        document.getElementById('dict-blind').classList.add('hidden');
+        document.getElementById('dict-reading').classList.remove('hidden');
+        document.getElementById('dict-word').textContent = w.word;
+        document.getElementById('dict-pho').textContent = w.phonetic || '';
+        document.getElementById('dict-tr').textContent = w.translation || '';
+        document.getElementById('btn-replay').textContent = '播放';
+        setTimeout(() => speak(w.word), 300);
+    }
+}
+
+function updateReplayBtn() {
+    const d = S.dict;
+    const btn = document.getElementById('btn-replay');
+    if (d.mode === 'blind') {
+        const remaining = d.maxReplay - d.replays;
+        btn.textContent = `重听 (${d.replays}/${d.maxReplay})`;
+        btn.disabled = remaining <= 0;
+    } else {
+        btn.textContent = '播放';
+        btn.disabled = false;
+    }
+}
+
+function replayWord() {
+    const d = S.dict;
+    const w = d.words[d.idx];
+    if (!w) return;
+    if (d.mode === 'blind') {
+        if (d.replays >= d.maxReplay) { showToast('已达到最大重听次数', 'err'); return; }
+        d.replays++;
+        updateReplayBtn();
+    }
+    speak(w.word);
+}
+
+function nextWord() {
+    S.dict.idx++;
+    if (S.dict.idx >= S.dict.words.length) {
+        endDictation();
+    } else {
+        renderDictation();
+    }
+}
+
+function endDictation() {
+    // Show results
+    const d = S.dict;
+    const list = document.getElementById('result-list');
+    list.innerHTML = d.words.map((w, i) => `
+        <div class="word-card">
+            <div class="w-head">
+                <span class="w-word">${i+1}. ${esc(w.word)}</span>
+                <button class="btn btn-sec btn-sm" onclick="speak('${esc(w.word)}')">播放</button>
+            </div>
+            <div class="w-pho">${esc(w.phonetic || '')}</div>
+            <div class="w-tr">${esc(w.translation || '')}</div>
+            <div class="w-st">${esc(w.sentence || '')}</div>
+        </div>
+    `).join('');
+    document.getElementById('score-total').textContent = d.words.length;
+    document.getElementById('score-correct').value = '';
+    document.getElementById('score-correct').max = d.words.length;
+    document.getElementById('score-pct').textContent = '0';
+    document.getElementById('score-correct').oninput = function() {
+        const c = parseInt(this.value) || 0;
+        const pct = d.words.length > 0 ? (c / d.words.length * 100).toFixed(2) : 0;
+        document.getElementById('score-pct').textContent = pct;
+    };
+    showView('results');
+}
+
+async function saveScore() {
+    const correct = parseInt(document.getElementById('score-correct').value) || 0;
+    const total = S.dict.words.length;
+    if (correct > total) { showToast('正确数不能超过总数', 'err'); return; }
+    const r = await api('records', {
+        family_id: S.family_id,
+        child_id: S.dictChildId,
+        child_name: S.dictChildName,
+        unit_ids: S.dictUnitIds || [],
+        dictation_order: S.dict.words.map(w => w.word),
+        words: S.dict.words,
+        correct_count: correct,
+        total: total,
+        mode: S.dict.mode
+    });
+    if (r.code === 0) {
+        showToast('成绩已保存', 'ok');
+        if (S.role === 'parent') { switchParentTab('records'); showView('parent'); }
+        else { switchChildTab('records'); showView('child'); }
+    } else showToast(r.msg, 'err');
+}
+
+// ==================== Word Entry ====================
+function enterEntry() {
+    showView('entry');
+    const s = S.entrySession;
+    document.getElementById('entry-child-name').textContent = s.child_name + ' · ' + (s.grade || 7) + '年级';
+    // Pre-fill if existing unit
+    if (s.unit && s.unit.words) {
+        const text = s.unit.words.map(w => w.word).join('\n');
+        document.getElementById('entry-textarea').value = text;
+        if (s.unit.words.length > 0 && s.unit.words[0].phonetic) {
+            S.generatedWords = s.unit.words;
+            showReview();
+        }
+    } else {
+        document.getElementById('entry-textarea').value = '';
+    }
+}
+
+async function aiCheck() {
+    const text = document.getElementById('entry-textarea').value.trim();
+    if (!text) { showToast('请输入单词', 'err'); return; }
+    const words = text.split('\n').map(w => w.trim()).filter(w => w);
+    if (!words.length) { showToast('请输入单词', 'err'); return; }
+
+    showToast('AI校验中...');
+    const r = await api('ai/check', { words });
+    if (r.code !== 0) { showToast(r.msg, 'err'); return; }
+
+    S.checkedWords = r.data;
+    const allValid = r.data.every(w => w.valid);
+    const html = r.data.map(w => {
+        if (w.valid) return `<span class="cr-word cr-ok">${esc(w.word)}</span>`;
+        return `<span class="cr-word cr-err">${esc(w.word)}</span>${w.suggestion ? `<span class="cr-word cr-fix">${esc(w.suggestion)}</span>` : ''}`;
+    }).join('');
+    document.getElementById('check-result').innerHTML = html + (allValid ? '' : '<p class="muted sm mt8">标红的单词可能有拼写错误，请修改后重新校验</p>');
+
+    if (allValid) {
+        document.getElementById('btn-generate').disabled = false;
+        showToast('全部通过', 'ok');
+    } else {
+        document.getElementById('btn-generate').disabled = true;
+    }
+}
+
+async function aiGenerate() {
+    const validWords = S.checkedWords.filter(w => w.valid).map(w => w.word);
+    if (!validWords.length) { showToast('没有有效单词', 'err'); return; }
+
+    showToast('AI生成中，请稍候...');
+    const r = await api('ai/generate', { words: validWords });
+    if (r.code !== 0) { showToast(r.msg, 'err'); return; }
+
+    S.generatedWords = r.data;
+    showReview();
+    showToast('内容已生成', 'ok');
+}
+
+function showReview() {
+    const words = S.generatedWords;
+    document.getElementById('entry-review').classList.remove('hidden');
+    document.getElementById('word-count').textContent = `${words.length}个单词`;
+    document.getElementById('word-review-list').innerHTML = words.map((w, i) => `
+        <div class="word-card">
+            <div class="w-head">
+                <span class="w-word">${i+1}. <input value="${esc(w.word)}" style="width:auto;font-size:18px;font-weight:600;border:none;padding:0" onchange="updateGenWord(${i},'word',this.value)"></span>
+                <button class="btn btn-sec btn-sm" onclick="speak('${esc(w.word)}')">播放</button>
+            </div>
+            <input value="${esc(w.phonetic || '')}" style="font-family:Georgia,serif;color:var(--muted);font-size:14px;margin-bottom:4px" onchange="updateGenWord(${i},'phonetic',this.value)">
+            <input value="${esc(w.translation || '')}" style="font-size:14px;margin-bottom:4px" onchange="updateGenWord(${i},'translation',this.value)">
+            <input value="${esc(w.sentence || '')}" style="font-size:13px;color:var(--muted);font-style:italic" onchange="updateGenWord(${i},'sentence',this.value)">
+        </div>
+    `).join('');
+}
+
+function updateGenWord(idx, field, val) {
+    if (S.generatedWords[idx]) S.generatedWords[idx][field] = val;
+}
+
+async function saveDraft() {
+    if (!S.generatedWords.length && !document.getElementById('entry-textarea').value.trim()) {
+        showToast('没有内容可保存', 'err'); return;
+    }
+    const words = S.generatedWords.length ? S.generatedWords
+        : document.getElementById('entry-textarea').value.trim().split('\n').map(w => ({ word: w.trim() })).filter(w => w.word);
+    const r = await api('session/save', {
+        code: S.entryCode,
+        words: words,
+        title: `录入-${S.entrySession.child_name}-${new Date().toLocaleDateString('zh-CN')}`
+    });
+    if (r.code === 0) showToast('草稿已保存', 'ok');
+    else showToast(r.msg, 'err');
+}
+
+async function submitWords() {
+    if (!S.generatedWords.length) { showToast('请先生成内容', 'err'); return; }
+    if (!confirm('提交后录入码将失效，确定提交？')) return;
+    // Save first
+    const r = await api('session/save', {
+        code: S.entryCode,
+        words: S.generatedWords,
+        title: `录入-${S.entrySession.child_name}-${new Date().toLocaleDateString('zh-CN')}`
+    });
+    if (r.code !== 0) { showToast(r.msg, 'err'); return; }
+    // Submit
+    const r2 = await api('session/submit', { code: S.entryCode });
+    if (r2.code === 0) {
+        showToast('提交成功', 'ok');
+        setTimeout(() => { logout(); }, 1500);
+    } else showToast(r2.msg, 'err');
+}
+
+// Release session on page close
+window.addEventListener('beforeunload', () => {
+    if (S.entryCode) {
+        navigator.sendBeacon(API_BASE + '/api/session/release', JSON.stringify({ code: S.entryCode }));
+    }
+});
+
+// ==================== Start ====================
+init();
+</script>
+</body>
+</html>
