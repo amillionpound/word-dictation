@@ -1,0 +1,34 @@
+name: Deploy to SCF
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Tencent Cloud SDK
+        run: pip install tencentcloud-sdk-python-scf
+
+      - name: Create deployment package
+        run: zip -r deploy.zip app.py index.html
+
+      - name: Deploy to SCF
+        env:
+          TENCENT_SECRET_ID: ${{ secrets.TENCENT_SECRET_ID }}
+          TENCENT_SECRET_KEY: ${{ secrets.TENCENT_SECRET_KEY }}
+        run: python scripts/deploy_scf.py
+
+      - name: Health check
+        run: |
+          sleep 5
+          curl -sf -o /dev/null -w "%{http_code}" https://1256784020-ca9zcay6yh.ap-guangzhou.tencentscf.com/ || echo "Health check failed (may need a few seconds to warm up)"
