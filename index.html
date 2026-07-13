@@ -142,7 +142,7 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <!-- Login -->
 <div id="view-login" class="view">
 <div class="login-box">
-<h2>单词听写系统</h2>
+<h2>悦听记·英语自习室</h2>
 <div id="login-motto" class="motto"></div>
 <div id="login-family-section">
 <div class="family-banner hidden" id="login-family-banner">当前家庭 · 家长：<b id="login-family-name">—</b> <span id="login-family-tag" class="tag tag-test hidden">测试家庭</span></div>
@@ -189,7 +189,7 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 </div>
 </div>
 </div>
-<div class="login-foot muted tc">单词听写系统 <span id="login-version"></span> · 学海无涯，砥砺前行</div>
+<div class="login-foot muted tc">悦听记·英语自习室 <span id="login-version"></span> · 学海无涯，砥砺前行</div>
 <details class="qa-box">
   <summary>AI 小助手（英语学习问答）</summary>
   <div class="col gap8 mt8">
@@ -527,6 +527,7 @@ function renderMotto(elId) {
 }
 
 // ==================== API ====================
+
 async function api(path, data = {}, method = 'POST') {
     try {
         const resp = await fetch('/api/' + path, {
