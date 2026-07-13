@@ -1004,15 +1004,28 @@ def get_words_from_unit(grade, unit_id):
             return words
     return []
 
+def _find_static(filename):
+    """Find a static file across possible SCF runtime directories."""
+    candidates = [
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
+        os.path.join(os.getcwd(), filename),
+        os.path.join('/var/task', filename),
+        os.path.join('/mnt/auto', filename),
+        filename,
+    ]
+    for p in candidates:
+        if os.path.isfile(p):
+            return p
+    return None
+
 # ==================== Routes: Static ====================
 @app.route('/')
 def index():
-    html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'index.html')
-    try:
+    html_path = _find_static('index.html')
+    if html_path:
         with open(html_path, 'r', encoding='utf-8') as f:
             return Response(f.read(), mimetype='text/html')
-    except Exception:
-        return 'index.html not found', 404
+    return 'index.html not found', 404
 
 # ==================== Routes: Auth ====================
 @app.route('/api/login', methods=['POST'])
