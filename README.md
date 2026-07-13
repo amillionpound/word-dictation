@@ -22,7 +22,33 @@
 
 ## 部署
 
+### 方式一: GitHub Actions 自动部署 (推荐)
+
+push 代码到 main 分支后，GitHub Actions 自动部署到 SCF。
+
+**需要在 GitHub 仓库 Settings → Secrets and variables → Actions 中添加 Secret:**
+
+| Secret 名 | 值 |
+|-----------|---|
+| `TENCENT_SECRET_ID` | 腾讯云 API SecretId (需 SCF 权限) |
+| `TENCENT_SECRET_KEY` | 腾讯云 API SecretKey |
+
+**SCF 函数配置** (在 `scripts/deploy_scf.py` 中修改):
+
+```python
+SCF_REGION = "ap-guangzhou"
+SCF_FUNCTION_NAME = "ca9zcay6yh"  # SCF 函数名
+SCF_NAMESPACE = "default"
+HANDLER = "app.main_handler"
+```
+
+### 方式二: 手动部署
+
+将 `app.py` 和 `index.html` 打包为 zip，上传到 SCF 控制台。
+
 ### 环境变量
+
+在 SCF 控制台 → 函数管理 → 函数配置 中设置:
 
 | 变量名 | 说明 |
 |--------|------|
@@ -37,7 +63,11 @@
 
 子账号需要 COS 的 `PutObject` / `PostObject` / `GetObject` / `HeadObject` 权限，resource 包含目标桶。
 
+GitHub Actions 部署用的子账号需要 SCF 的 `UpdateFunctionCode` 权限。
+
 ## 文件
 
 - `app.py` - SCF Web Function 后端
 - `index.html` - 前端单页应用
+- `.github/workflows/deploy.yml` - GitHub Actions 自动部署工作流
+- `scripts/deploy_scf.py` - SCF 部署脚本 (Tencent Cloud SDK)
