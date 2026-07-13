@@ -563,10 +563,13 @@ async function apiDel(path) {
 let ttsVoices = [];
 let ttsAudio = null;
 function initTTS() {
-    function load() { ttsVoices = speechSynthesis.getVoices(); }
-    load();
-    if (speechSynthesis.onvoiceschanged !== undefined)
-        speechSynthesis.onvoiceschanged = load;
+    try {
+        if (typeof speechSynthesis === 'undefined') return;
+        function load() { ttsVoices = speechSynthesis.getVoices(); }
+        load();
+        if (speechSynthesis.onvoiceschanged !== undefined)
+            speechSynthesis.onvoiceschanged = load;
+    } catch(e) { /* TTS 不可用时静默跳过 */ }
 }
 function speak(word) {
     // 首选有道TTS（国内可靠，不受iframe沙箱限制）
