@@ -145,7 +145,7 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <h2 id="ui-title">悦听记·英语自习室</h2>
 <div id="ui-subtitle" class="muted tc hidden" style="font-size:14px;margin:2px 0 4px;"></div>
 <div id="login-motto" class="motto"></div>
-<div id="login-family-section">
+<div id="login-family-section" class="hidden">
 <div class="family-banner hidden" id="login-family-banner">当前家庭 · 家长：<b id="login-family-name">—</b> <span id="login-family-tag" class="tag tag-test hidden">测试家庭</span></div>
 <div class="role-tabs">
 <div class="role-tab active" data-role="parent" onclick="switchLoginRole('parent')">家长</div>
@@ -700,9 +700,10 @@ async function applyUIConfig() {
 }
 
 function init() {
-    initTTS();
-    applyUIConfig();
-    const params = new URLSearchParams(location.search);
+    try {
+        initTTS();
+        applyUIConfig();  // async, fire-and-forget; failure won't block
+        const params = new URLSearchParams(location.search);
     const fid = params.get('family');
     if (fid) {
         S.family_id = fid;
@@ -741,6 +742,14 @@ function init() {
             S.child_name = s.child_name; S.grade = s.grade || 7;
             enterApp();
         } catch (e) { localStorage.removeItem('wdb_session'); }
+    }
+    } catch (err) {
+        // init() 出错时确保至少显示超管登录区（安全降级）
+        var famSec = document.getElementById('login-family-section');
+        var admSec = document.getElementById('login-admin-section');
+        if (famSec) famSec.classList.add('hidden');
+        if (admSec) admSec.classList.remove('hidden');
+        console.error('init error:', err);
     }
 }
 
