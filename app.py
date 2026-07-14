@@ -236,19 +236,30 @@ def log_usage(event, sub_type, **extra):
         pass  # usage logging must never break the app
 
 def record_login(role, success=True):
-    """Record login events into usage stats (additive, non-destructive). Best-effort, never raises."""
+    """Record login events into usage stats (additive, non-destructive). Best-effort, never raises.
+
+    Tracks both cumulative counters (logins / logins_by_role / login_errors) and a
+    per-day breakdown (login_daily) for long-term usage trend analysis.
+    """
     global _usage_cache
     try:
         if _usage_cache is None:
             _usage_cache = cos.get_json('config/usage_stats.json') or _default_usage()
         stats = _usage_cache
         now = int(time.time())
+        day = time.strftime('%Y-%m-%d', time.localtime(now))
+        daily = stats.setdefault('login_daily', {})
+        d = daily.setdefault(day, {'total': 0, 'parent': 0, 'child': 0, 'code': 0, 'error': 0})
         if success:
             stats['logins'] = stats.get('logins', 0) + 1
             by = stats.setdefault('logins_by_role', {})
             by[role] = by.get(role, 0) + 1
+            d['total'] = d.get('total', 0) + 1
+            if role in ('parent', 'child', 'code'):
+                d[role] = d.get(role, 0) + 1
         else:
             stats['login_errors'] = stats.get('login_errors', 0) + 1
+            d['error'] = d.get('error', 0) + 1
         stats['last_login'] = {'ts': now, 'role': role, 'success': success}
         cos.put_json('config/usage_stats.json', stats)
     except Exception:
@@ -264,6 +275,7 @@ def _default_usage():
         'logins': 0,
         'logins_by_role': {},
         'login_errors': 0,
+        'login_daily': {},
         'last_login': None,
         'recent': [],
         'first_call': int(time.time()),
@@ -278,7 +290,7 @@ def get_usage_stats():
         return {
             'ai_calls': {}, 'ai_errors': 0, 'ai_skips': 0,
             'total_prompt_tokens': 0, 'total_completion_tokens': 0,
-            'logins': 0, 'logins_by_role': {}, 'login_errors': 0, 'last_login': None,
+            'logins': 0, 'logins_by_role': {}, 'login_errors': 0, 'login_daily': {}, 'last_login': None,
             'recent': [], 'first_call': None, 'last_call': None
         }
     return _usage_cache
