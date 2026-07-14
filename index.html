@@ -165,19 +165,19 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <label>家庭标识</label>
 <input id="login-family-id" placeholder="家庭ID" readonly>
 <label>密码</label>
-<input id="login-parent-pwd" type="password" placeholder="输入家长密码">
+<input id="login-parent-pwd" type="password" placeholder="输入家长密码" onkeydown="if(event.key==='Enter'){doLogin('parent');}">
 <button class="btn btn-primary btn-block" onclick="doLogin('parent')">登录</button>
 </div>
 <div id="login-child" class="col gap12 hidden">
 <label>家庭标识</label>
 <input id="login-family-id2" placeholder="家庭ID" readonly>
 <label>孩子密码</label>
-<input id="login-child-pwd" type="password" placeholder="输入孩子密码">
+<input id="login-child-pwd" type="password" placeholder="输入孩子密码" onkeydown="if(event.key==='Enter'){doLogin('child');}">
 <button class="btn btn-primary btn-block" onclick="doLogin('child')">登录</button>
 </div>
 <div id="login-code" class="col gap12 hidden">
 <label>4位录入码</label>
-<input id="login-code-input" maxlength="4" placeholder="输入4位数字" inputmode="numeric" style="font-size:28px;text-align:center;letter-spacing:8px">
+<input id="login-code-input" maxlength="4" placeholder="输入4位数字" inputmode="numeric" style="font-size:28px;text-align:center;letter-spacing:8px" onkeydown="if(event.key==='Enter'){doEntryCodeLogin();}">
 <button class="btn btn-primary btn-block" onclick="doEntryCodeLogin()">进入录入</button>
 <p id="ui-login-code-desc" class="muted sm tc mt8 hidden"></p>
 </div>
@@ -190,7 +190,7 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 </div>
 <div id="login-admin">
 <label>超管密码</label>
-<input id="login-admin-pwd" type="password" placeholder="输入超管密码">
+<input id="login-admin-pwd" type="password" placeholder="输入超管密码" onkeydown="if(event.key==='Enter'){doLogin('admin');}">
 <button class="btn btn-primary btn-block" onclick="doLogin('admin')">登录</button>
 </div>
 <div id="login-family-url" class="hidden">
@@ -967,6 +967,7 @@ async function loadUsage() {
     const r = await apiGet('usage');
     if (r.code !== 0) { el.innerHTML = `<div class="card"><p class="err">${esc(r.msg)}</p></div>`; return; }
     const d = r.data;
+    if (usageTab === 'login') { renderUsageLogin(el, d); return; }
     const calls = d.ai_calls || {};
     const totalCalls = Object.values(calls).reduce((a,b) => a+b, 0);
     const typeLabels = {check:'拼写校验', generate:'内容生成', training:'特训生成', init_vocab:'词库初始化', qa:'智能问答', general:'其他'};
@@ -985,20 +986,6 @@ async function loadUsage() {
         html += '<div class="muted sm mt8">尚未有 AI 调用记录</div>';
     }
     html += '</div>';
-
-    // Login stats
-    const logins = d.logins || 0;
-    const lbr = d.logins_by_role || {};
-    const lErr = d.login_errors || 0;
-    const lastLogin = d.last_login ? fmtDate(d.last_login.ts) + (d.last_login.role ? '（' + ({parent:'家长',child:'孩子',code:'录入码',admin:'超管'}[d.last_login.role] || d.last_login.role) + '）' : '') : '无';
-    html += '<div class="card"><h3>登录统计</h3><div class="mt8 login-stat-grid">';
-    html += `<div class="stat-box"><div class="stat-num">${logins}</div><div class="stat-label">累计登录</div></div>`;
-    html += `<div class="stat-box"><div class="stat-num">${lbr.parent || 0}</div><div class="stat-label">家长登录</div></div>`;
-    html += `<div class="stat-box"><div class="stat-num">${lbr.child || 0}</div><div class="stat-label">孩子登录</div></div>`;
-    html += `<div class="stat-box"><div class="stat-num">${lbr.code || 0}</div><div class="stat-label">录入码登录</div></div>`;
-    html += `<div class="stat-box"><div class="stat-num">${lErr}</div><div class="stat-label">登录失败</div></div>`;
-    html += `<div class="stat-box"><div class="stat-num" style="font-size:20px">${lastLogin}</div><div class="stat-label">最近登录</div></div>`;
-    html += '</div></div>';
 
     // Breakdown by type
     if (totalCalls > 0) {
@@ -1031,6 +1018,53 @@ async function loadUsage() {
     }
 
     el.innerHTML = html || '<div class="card"><p class="muted">暂无用量数据</p></div>';
+}
+
+let usageTab = 'ai';
+function switchUsageTab(tab) {
+    usageTab = tab;
+    document.querySelectorAll('[data-utab]').forEach(t => t.classList.toggle('active', t.getAttribute('data-utab') === tab));
+    loadUsage();
+}
+
+function renderUsageLogin(el, d) {
+    const logins = d.logins || 0;
+    const lbr = d.logins_by_role || {};
+    const lErr = d.login_errors || 0;
+    const lastLogin = d.last_login ? fmtDate(d.last_login.ts) + (d.last_login.role ? '（' + ({parent:'家长',child:'孩子',code:'录入码',admin:'超管'}[d.last_login.role] || d.last_login.role) + '）' : '') : '无';
+    let html = '';
+    html += '<div class="card"><h3>登录统计总览</h3><div class="mt8 login-stat-grid">';
+    html += `<div class="stat-box"><div class="stat-num">${logins}</div><div class="stat-label">累计登录</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num">${lbr.parent || 0}</div><div class="stat-label">家长登录</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num">${lbr.child || 0}</div><div class="stat-label">孩子登录</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num">${lbr.code || 0}</div><div class="stat-label">录入码登录</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num">${lbr.admin || 0}</div><div class="stat-label">超管登录</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num">${lErr}</div><div class="stat-label">登录失败</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num" style="font-size:20px">${lastLogin}</div><div class="stat-label">最近登录</div></div>`;
+    html += '</div></div>';
+    // 按日趋势（近30天）
+    const daily = d.login_daily || {};
+    const days = [];
+    const today = new Date();
+    for (let i = 29; i >= 0; i--) {
+        const dt = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
+        const key = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
+        days.push(key);
+    }
+    html += '<div class="card"><h3>每日登录趋势（近30天）</h3>';
+    html += '<table class="usage-table"><thead><tr><th>日期</th><th>总登录</th><th>家长</th><th>孩子</th><th>录入码</th><th>失败</th></tr></thead><tbody>';
+    for (const key of days) {
+        const e = daily[key] || {total:0, parent:0, child:0, code:0, error:0};
+        html += `<tr><td>${key}</td><td>${e.total||0}</td><td>${e.parent||0}</td><td>${e.child||0}</td><td>${e.code||0}</td><td>${e.error||0}</td></tr>`;
+    }
+    html += '</tbody></table></div>';
+    let sumTotal=0, sumParent=0, sumChild=0, sumCode=0, sumErr=0;
+    for (const key of days) {
+        const e = daily[key] || {};
+        sumTotal += e.total||0; sumParent += e.parent||0; sumChild += e.child||0; sumCode += e.code||0; sumErr += e.error||0;
+    }
+    html += '<div class="muted sm mt8">近30天合计：登录 ' + sumTotal + ' 次（家长 ' + sumParent + ' · 孩子 ' + sumChild + ' · 录入码 ' + sumCode + ' · 失败 ' + sumErr + '）</div>';
+    el.innerHTML = html;
 }
 
 // ==================== Parent ====================
