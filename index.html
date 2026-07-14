@@ -341,8 +341,11 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 </div>
 <div id="ctab-learn">
 <div class="card">
+<div class="row" style="justify-content:space-between;align-items:center">
 <h3>单词学习</h3>
-<p class="muted sm mt8">选择单元，先学习单词再听写</p>
+<button class="btn btn-primary btn-sm" onclick="openSelfSelect()">+ 自选词库</button>
+</div>
+<p class="muted sm mt8">选择单元学习，或「自选词库」跨单元挑出想练的单词</p>
 <div id="learn-motto" class="motto"></div>
 <div id="learn-unit-list" class="mt8"></div>
 <div id="learn-words-area" class="mt8 hidden"></div>
@@ -509,6 +512,7 @@ let S = {
     config: { default_replay_limit: 5 },
     entryCode: null, entrySession: null,
     checkedWords: [], generatedWords: [],
+    selfSelectWords: null,
     dict: { words: [], idx: 0, mode: 'blind', replays: 0, maxReplay: 5 },
     selectedUnits: new Set(),
     selectedLessons: new Set(),
@@ -725,18 +729,8 @@ function init() {
     try {
         initTTS();
         applyUIConfig();  // async, fire-and-forget; failure won't block
-        const params = new URLSearchParams(location.search);
-    const fid = params.get('family');
-    if (fid) {
-        S.family_id = fid;
-        document.getElementById('login-family-id').value = fid;
-        document.getElementById('login-family-id2').value = fid;
-        document.getElementById('login-family-section').classList.remove('hidden');
-        document.getElementById('login-admin-section').classList.add('hidden');
-    } else {
-        document.getElementById('login-family-section').classList.add('hidden');
-        document.getElementById('login-admin-section').classList.remove('hidden');
-    }
+        applyLoginView();
+        const fid = new URLSearchParams(location.search).get('family');
 
     // 版本号、励志短语（登录页）
     renderMotto('login-motto');
@@ -776,6 +770,25 @@ function init() {
 }
 
 // ==================== Login ====================
+function applyLoginView() {
+    const fid = new URLSearchParams(location.search).get('family');
+    if (fid) {
+        S.family_id = fid;
+        const fi = document.getElementById('login-family-id');
+        const fi2 = document.getElementById('login-family-id2');
+        if (fi) fi.value = fid;
+        if (fi2) fi2.value = fid;
+        document.getElementById('login-family-section').classList.remove('hidden');
+        document.getElementById('login-admin-section').classList.add('hidden');
+        switchLoginRole('parent');
+    } else {
+        S.family_id = null;
+        document.getElementById('login-family-section').classList.add('hidden');
+        document.getElementById('login-admin-section').classList.remove('hidden');
+        switchLoginRole('admin');
+    }
+}
+
 function switchLoginRole(role) {
     S.loginRole = role;
     if (role === 'admin' || role === 'family-url') {
@@ -815,6 +828,13 @@ async function doLogin(role) {
             : document.getElementById('login-child-pwd').value;
 
     if (!password) { showToast('请输入密码', 'err'); return; }
+
+    if ((role === 'parent' || role === 'child') && !S.family_id) {
+        showToast('请先输入家庭ID', 'err');
+        switchLoginRole('family-url');
+        document.getElementById('login-enter-family').focus();
+        return;
+    }
 
     const r = await api('login', { role, password, family_id: S.family_id });
     if (r.code !== 0) { showToast(r.msg, 'err'); return; }
@@ -863,10 +883,12 @@ function logout() {
     S = { role: null, family_id: S.family_id, family_name: null, loginRole: 'parent', is_test: false,
           config: { default_replay_limit: 5 }, entryCode: null, entrySession: null,
           checkedWords: [], generatedWords: [],
+          selfSelectWords: null,
           dict: { words: [], idx: 0, mode: 'blind', replays: 0, maxReplay: 5 },
           selectedUnits: new Set(), selectedLessons: new Set(), dictChildId: null };
     document.getElementById('nav-logout').classList.add('hidden');
     document.getElementById('nav-user').classList.add('hidden');
+    applyLoginView();
     showView('login');
 }
 
@@ -1050,7 +1072,7 @@ function renderUsageLogin(el, d) {
     const daily = d.login_daily || {};
     const days = [];
     const today = new Date();
-    for (let i = 29; i >= 0; i--) {
+    for (let i = 0; i <= 29; i++) {
         const dt = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i);
         const key = dt.getFullYear() + '-' + String(dt.getMonth()+1).padStart(2,'0') + '-' + String(dt.getDate()).padStart(2,'0');
         days.push(key);
@@ -1639,6 +1661,113 @@ async function renderLearnUnitWords(unitId, el) {
         ${wordsHtml}
     `;
     area.classList.remove('hidden');
+}
+
+// ==================== 孩子自选词库 ====================
+let selfAllWords = [];
+let selfPicked = new Set();
+
+async function openSelfSelect() {
+    showModal(`<div class="modal-h"><h3>自选词库</h3><button class="close" onclick="closeModal()">&times;</button></div>
+      <p class="muted sm">勾选想学习的单词，可跨单元挑选</p>
+      <div id="self-select-list" class="mt8" style="max-height:60vh;overflow:auto">加载中...</div>
+      <div class="row gap8 mt12">
+        <button class="btn btn-sec btn-sm" onclick="selectAllSelf(true)">全选</button>
+        <button class="btn btn-sec btn-sm" onclick="selectAllSelf(false)">清空</button>
+        <button class="btn btn-primary btn-block" onclick="confirmSelfSelect()">开始学习（<span id="self-count">0</span>词）</button>
+      </div>`);
+    const r = await apiGet('units?family_id=' + S.family_id);
+    const el = document.getElementById('self-select-list');
+    if (r.code !== 0 || !r.data || !r.data.length) { el.innerHTML = '<div class="empty"><p>暂无单词单元</p></div>'; return; }
+    const units = r.data.filter(u => (u.status === 'pending' || u.status === 'locked') && (u.word_count || 0) > 0);
+    if (!units.length) { el.innerHTML = '<div class="empty"><p>单元里还没有单词</p></div>'; return; }
+    // 列表接口只返回 word_count，需逐单元拉详情取 words
+    el.innerHTML = '<div class="muted sm">加载单词中...</div>';
+    const details = await Promise.all(units.map(u =>
+        apiGet('units/' + u.unit_id + '?family_id=' + S.family_id).then(d => ({ u, d })).catch(() => ({ u, d: null }))
+    ));
+    selfAllWords = [];
+    const htmlParts = [];
+    for (const { u, d } of details) {
+        if (!d || d.code !== 0 || !d.data || !d.data.words) continue;
+        const ws = d.data.words.map(w => {
+            const idx = selfAllWords.length;
+            selfAllWords.push({ word: w.word, phonetic: w.phonetic, translation: w.translation, sentence: w.sentence || w.example, unit_id: u.unit_id, unit_title: u.title });
+            return `<label class="unit-checkbox" style="padding:6px 8px" onclick="toggleSelfWord(${idx}, this)">
+                <input type="checkbox" data-idx="${idx}">
+                <div><div class="li-title" style="font-size:15px">${esc(w.word)}</div><div class="li-sub">${esc(w.phonetic || '')} ${esc(w.translation || '')}</div></div>
+            </label>`;
+        }).join('');
+        if (ws) htmlParts.push(`<div class="card" style="margin-bottom:8px;box-shadow:none;border:1px solid var(--bd)"><div class="li-title" style="margin-bottom:6px">${esc(u.title)}</div>${ws}</div>`);
+    }
+    if (!htmlParts.length) { el.innerHTML = '<div class="empty"><p>单元里还没有单词</p></div>'; return; }
+    el.innerHTML = htmlParts.join('');
+}
+
+function toggleSelfWord(idx, el) {
+    if (selfPicked.has(idx)) { selfPicked.delete(idx); el.classList.remove('active'); }
+    else { selfPicked.add(idx); el.classList.add('active'); }
+    el.querySelector('input').checked = selfPicked.has(idx);
+    const c = document.getElementById('self-count');
+    if (c) c.textContent = selfPicked.size;
+}
+
+function selectAllSelf(on) {
+    selfPicked = new Set();
+    document.querySelectorAll('#self-select-list input[type=checkbox]').forEach(cb => {
+        const idx = parseInt(cb.getAttribute('data-idx'));
+        cb.checked = on;
+        cb.closest('.unit-checkbox').classList.toggle('active', on);
+        if (on) selfPicked.add(idx);
+    });
+    const c = document.getElementById('self-count');
+    if (c) c.textContent = selfPicked.size;
+}
+
+function confirmSelfSelect() {
+    if (selfPicked.size === 0) { showToast('请至少选择一个单词', 'err'); return; }
+    S.selfSelectWords = [...selfPicked].sort((a, b) => a - b).map(i => selfAllWords[i]);
+    closeModal();
+    renderSelfLearn();
+}
+
+function renderSelfLearn() {
+    const words = S.selfSelectWords || [];
+    const area = document.getElementById('learn-words-area');
+    const wordsHtml = words.map((w, i) => `
+        <div class="word-card">
+            <div class="w-head">
+                <span class="w-word">${i+1}. ${esc(w.word)}</span>
+                <button class="btn btn-sec btn-sm" onclick="speak('${esc(w.word)}')">播放</button>
+            </div>
+            <div class="w-pho">${esc(w.phonetic || '')}</div>
+            <div class="w-tr">${esc(w.translation || '')}</div>
+            <div class="w-st">${esc(w.sentence || '')}</div>
+        </div>`).join('');
+    area.innerHTML = `
+        <h4 style="margin-bottom:8px">自选词库（${words.length}词）</h4>
+        <div class="row gap8 mb8">
+            <button class="btn btn-primary btn-sm" onclick="startSelfDictation()">开始听写（自选）</button>
+            <button class="btn btn-sec btn-sm" onclick="openSelfSelect()">重新挑选</button>
+        </div>
+        ${wordsHtml}`;
+    area.classList.remove('hidden');
+}
+
+function startSelfDictation() {
+    if (!S.selfSelectWords || !S.selfSelectWords.length) { showToast('请先自选单词', 'err'); return; }
+    const modeEl = document.querySelector('input[name="dmode"]:checked');
+    const mode = modeEl ? modeEl.value : 'blind';
+    S.dict.words = S.selfSelectWords.map(w => ({ word: w.word, phonetic: w.phonetic, translation: w.translation, sentence: w.sentence }));
+    S.dict.idx = 0;
+    S.dict.mode = mode;
+    S.dict.replays = 0;
+    S.dict.maxReplay = S.config.default_replay_limit || 5;
+    S.dictChildId = S.child_id;
+    S.dictChildName = S.child_name;
+    S.dictUnitIds = null;
+    showView('dictation');
+    renderDictation();
 }
 
 async function loadChildUnits() {
