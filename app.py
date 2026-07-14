@@ -212,16 +212,7 @@ def log_usage(event, sub_type, **extra):
     global _usage_cache
     try:
         if _usage_cache is None:
-            _usage_cache = cos.get_json('config/usage_stats.json') or {
-                'ai_calls': {'check': 0, 'generate': 0, 'training': 0, 'init_vocab': 0, 'qa': 0, 'general': 0},
-                'ai_errors': 0,
-                'ai_skips': 0,
-                'total_prompt_tokens': 0,
-                'total_completion_tokens': 0,
-                'recent': [],
-                'first_call': int(time.time()),
-                'last_call': None
-            }
+            _usage_cache = cos.get_json('config/usage_stats.json') or _default_usage()
         stats = _usage_cache
         entry = {
             'ts': int(time.time()),
@@ -244,6 +235,41 @@ def log_usage(event, sub_type, **extra):
     except Exception:
         pass  # usage logging must never break the app
 
+def record_login(role, success=True):
+    """Record login events into usage stats (additive, non-destructive). Best-effort, never raises."""
+    global _usage_cache
+    try:
+        if _usage_cache is None:
+            _usage_cache = cos.get_json('config/usage_stats.json') or _default_usage()
+        stats = _usage_cache
+        now = int(time.time())
+        if success:
+            stats['logins'] = stats.get('logins', 0) + 1
+            by = stats.setdefault('logins_by_role', {})
+            by[role] = by.get(role, 0) + 1
+        else:
+            stats['login_errors'] = stats.get('login_errors', 0) + 1
+        stats['last_login'] = {'ts': now, 'role': role, 'success': success}
+        cos.put_json('config/usage_stats.json', stats)
+    except Exception:
+        pass  # login logging must never break the app
+
+def _default_usage():
+    return {
+        'ai_calls': {'check': 0, 'generate': 0, 'training': 0, 'init_vocab': 0, 'qa': 0, 'general': 0},
+        'ai_errors': 0,
+        'ai_skips': 0,
+        'total_prompt_tokens': 0,
+        'total_completion_tokens': 0,
+        'logins': 0,
+        'logins_by_role': {},
+        'login_errors': 0,
+        'last_login': None,
+        'recent': [],
+        'first_call': int(time.time()),
+        'last_call': None
+    }
+
 def get_usage_stats():
     global _usage_cache
     if _usage_cache is None:
@@ -252,6 +278,7 @@ def get_usage_stats():
         return {
             'ai_calls': {}, 'ai_errors': 0, 'ai_skips': 0,
             'total_prompt_tokens': 0, 'total_completion_tokens': 0,
+            'logins': 0, 'logins_by_role': {}, 'login_errors': 0, 'last_login': None,
             'recent': [], 'first_call': None, 'last_call': None
         }
     return _usage_cache
@@ -1142,7 +1169,9 @@ def login():
 
         if role == 'admin':
             if hash_pwd(password) == ADMIN_PWD_VERIFY:
+                record_login('admin')
                 return ok({'role': 'admin', 'token': ADMIN_PWD_VERIFY[:16]})
+            record_login('admin', success=False)
             return fail('密码错误')
 
         if not family_id:
@@ -1155,6 +1184,7 @@ def login():
         if role == 'parent':
             parent = users.get('parent', {})
             if hash_pwd(password) == parent.get('password_hash'):
+                record_login('parent')
                 fam = next((f for f in get_families() if f['family_id'] == family_id), {})
                 return ok({
                     'role': 'parent', 'family_id': family_id,
@@ -1162,17 +1192,20 @@ def login():
                     'parent_name': parent.get('name', '家长'),
                     'is_test': bool(fam.get('is_test', False))
                 })
+            record_login('parent', success=False)
             return fail('密码错误')
 
         if role == 'child':
             for child in users.get('children', []):
                 if hash_pwd(password) == child.get('password_hash'):
+                    record_login('child')
                     return ok({
                         'role': 'child', 'family_id': family_id,
                         'child_id': child['child_id'],
                         'child_name': child['name'],
                         'grade': child.get('grade', 7)
                     })
+            record_login('child', success=False)
             return fail('密码错误')
 
         return fail('未知角色')
@@ -1562,6 +1595,7 @@ def validate_session():
 
         session['last_active'] = int(time.time())
         save_session(code, session)
+        record_login('code')
 
         # Get existing unit if exists
         unit_data = None

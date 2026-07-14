@@ -127,6 +127,15 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 .hash-out{font-family:Georgia,serif;font-size:13px;word-break:break-all;background:var(--bg);border-radius:6px;padding:8px;color:var(--text)}
 .tag-test{background:#FAEEDA;color:var(--warn)}
 .btn[disabled]{opacity:.55;cursor:not-allowed}
+.dict-answer-wrap{display:flex;gap:10px;max-width:440px;margin:18px auto 0}
+.dict-answer-input{flex:1;padding:14px 16px;font-size:22px;border:2px solid #d7e0ea;border-radius:14px;outline:none;text-align:center;letter-spacing:1px;background:#fff}
+.dict-answer-input:focus{border-color:var(--pri)}
+.dict-feedback{text-align:center;margin-top:12px;font-size:22px;min-height:30px;font-weight:600}
+.dict-feedback.ok{color:#1f9e86}
+.dict-feedback.bad{color:#e0663f}
+.w-ok{color:#1f9e86;font-weight:700;margin-right:6px}
+.w-bad{color:#e0663f;font-weight:700;margin-right:6px}
+.login-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 </style>
 </head>
 <body>
@@ -436,6 +445,11 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <div class="dict-pho" id="dict-pho">/phonetic/</div>
 <div class="dict-tr" id="dict-tr">translation</div>
 </div>
+<div class="dict-answer-wrap">
+<input id="dict-answer" class="dict-answer-input" placeholder="在此输入你听到的单词" autocomplete="off" autocapitalize="off" spellcheck="false" onkeydown="if(event.key==='Enter'){checkWord();}">
+<button class="btn btn-sec" id="btn-check" onclick="checkWord()">核对</button>
+</div>
+<div id="dict-feedback" class="dict-feedback"></div>
 <div class="row gap12 mt16" style="justify-content:center">
 <button class="btn btn-sec replay-btn" id="btn-replay" onclick="replayWord()">重听</button>
 <button class="btn btn-primary" id="btn-next" onclick="nextWord()">下一题</button>
@@ -457,6 +471,7 @@ textarea.entry{width:100%;min-height:180px;font-family:monospace;font-size:16px;
 <input id="score-correct" type="number" min="0" placeholder="0">
 <span>个，共<span id="score-total">0</span>个</span>
 </div>
+<p class="muted sm mt8">系统已按逐词核对自动评分，如需调整可手动修改</p>
 <div class="tc mt8">
 <span class="muted">得分：</span>
 <span class="score-big" id="score-pct">0</span>
@@ -970,6 +985,20 @@ async function loadUsage() {
         html += '<div class="muted sm mt8">尚未有 AI 调用记录</div>';
     }
     html += '</div>';
+
+    // Login stats
+    const logins = d.logins || 0;
+    const lbr = d.logins_by_role || {};
+    const lErr = d.login_errors || 0;
+    const lastLogin = d.last_login ? fmtDate(d.last_login.ts) + (d.last_login.role ? '（' + ({parent:'家长',child:'孩子',code:'录入码',admin:'超管'}[d.last_login.role] || d.last_login.role) + '）' : '') : '无';
+    html += '<div class="card"><h3>登录统计</h3><div class="mt8 login-stat-grid">';
+    html += `<div class="stat-box"><div class="stat-num">${logins}</div><div class="stat-label">累计登录</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num">${lbr.parent || 0}</div><div class="stat-label">家长登录</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num">${lbr.child || 0}</div><div class="stat-label">孩子登录</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num">${lbr.code || 0}</div><div class="stat-label">录入码登录</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num">${lErr}</div><div class="stat-label">登录失败</div></div>`;
+    html += `<div class="stat-box"><div class="stat-num" style="font-size:20px">${lastLogin}</div><div class="stat-label">最近登录</div></div>`;
+    html += '</div></div>';
 
     // Breakdown by type
     if (totalCalls > 0) {
@@ -1679,6 +1708,7 @@ function replayDictation(recordIdx, shuffle) {
 // ==================== Dictation ====================
 function renderDictation() {
     const d = S.dict;
+    if (!d.results) d.results = [];
     const w = d.words[d.idx];
     if (!w) { endDictation(); return; }
 
@@ -1687,6 +1717,12 @@ function renderDictation() {
         `<div class="dot ${i < d.idx ? 'done' : ''} ${i === d.idx ? 'cur' : ''}"></div>`
     ).join('');
     document.getElementById('dict-progress').innerHTML = dots;
+
+    // Reset answer input & feedback
+    const ansEl = document.getElementById('dict-answer');
+    if (ansEl) { ansEl.value = ''; ansEl.disabled = false; }
+    const fb = document.getElementById('dict-feedback');
+    if (fb) { fb.textContent = ''; fb.className = 'dict-feedback'; }
 
     if (d.mode === 'blind') {
         document.getElementById('dict-blind').classList.remove('hidden');
@@ -1703,6 +1739,31 @@ function renderDictation() {
         document.getElementById('dict-tr').textContent = w.translation || '';
         document.getElementById('btn-replay').textContent = '播放';
         setTimeout(() => speak(w.word), 300);
+    }
+    // Focus input so child can type immediately
+    setTimeout(() => { if (ansEl) ansEl.focus(); }, 600);
+}
+
+function checkWord() {
+    const d = S.dict;
+    if (!d.results) d.results = [];
+    const w = d.words[d.idx];
+    if (!w) return;
+    const ansEl = document.getElementById('dict-answer');
+    const fb = document.getElementById('dict-feedback');
+    const typed = (ansEl.value || '').trim().toLowerCase();
+    const correct = (w.word || '').trim().toLowerCase();
+    const ok = typed.length > 0 && typed === correct;
+    d.results[d.idx] = { answer: typed, correct: ok };
+    if (typed.length === 0) {
+        fb.textContent = '✗ 未填写 · 正确拼写：' + w.word;
+        fb.className = 'dict-feedback bad';
+    } else if (ok) {
+        fb.textContent = '✓ 正确！';
+        fb.className = 'dict-feedback ok';
+    } else {
+        fb.innerHTML = '✗ 正确拼写：' + esc(w.word);
+        fb.className = 'dict-feedback bad';
     }
 }
 
@@ -1732,6 +1793,15 @@ function replayWord() {
 }
 
 function nextWord() {
+    const d = S.dict;
+    if (!d.results) d.results = [];
+    if (d.results[d.idx] === undefined) {
+        // Auto-grade current word if not yet checked
+        const ansEl = document.getElementById('dict-answer');
+        const typed = (ansEl.value || '').trim().toLowerCase();
+        const correct = (d.words[d.idx].word || '').trim().toLowerCase();
+        d.results[d.idx] = { answer: typed, correct: typed.length > 0 && typed === correct };
+    }
     S.dict.idx++;
     if (S.dict.idx >= S.dict.words.length) {
         endDictation();
@@ -1743,22 +1813,27 @@ function nextWord() {
 function endDictation() {
     // Show results
     const d = S.dict;
+    if (!d.results) d.results = [];
+    const correctCount = d.results.filter(r => r && r.correct).length;
     const list = document.getElementById('result-list');
-    list.innerHTML = d.words.map((w, i) => `
+    list.innerHTML = d.words.map((w, i) => {
+        const res = d.results[i];
+        const mark = res ? (res.correct ? '<span class="w-ok">✓</span>' : '<span class="w-bad">✗</span>') : '';
+        return `
         <div class="word-card">
             <div class="w-head">
-                <span class="w-word">${i+1}. ${esc(w.word)}</span>
+                <span class="w-word">${i+1}. ${mark}${esc(w.word)}</span>
                 <button class="btn btn-sec btn-sm" onclick="speak('${esc(w.word)}')">播放</button>
             </div>
             <div class="w-pho">${esc(w.phonetic || '')}</div>
             <div class="w-tr">${esc(w.translation || '')}</div>
             <div class="w-st">${esc(w.sentence || '')}</div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
     document.getElementById('score-total').textContent = d.words.length;
-    document.getElementById('score-correct').value = '';
+    document.getElementById('score-correct').value = correctCount;
     document.getElementById('score-correct').max = d.words.length;
-    document.getElementById('score-pct').textContent = '0';
+    document.getElementById('score-pct').textContent = d.words.length > 0 ? (correctCount / d.words.length * 100).toFixed(2) : 0;
     document.getElementById('score-correct').oninput = function() {
         const c = parseInt(this.value) || 0;
         const pct = d.words.length > 0 ? (c / d.words.length * 100).toFixed(2) : 0;
