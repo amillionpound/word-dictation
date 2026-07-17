@@ -9,3 +9,10 @@ node_modules/
 .workbuddy/
 deploy.zip
 scf-deploy.zip
+
+# 宣传视频 / 生成物 / 构建产物（本地生成，不进版本库）
+_final.wav
+outputs/
+video_assets/
+scf-deploy-new.zip
+vendor/
