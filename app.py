@@ -243,6 +243,9 @@ def record_login(role, success=True):
     """
     global _usage_cache
     try:
+        # 超管登录不计入统计（避免"最后登录用户"总是超管，也不污染登录计数）
+        if role == 'admin':
+            return
         if _usage_cache is None:
             _usage_cache = cos.get_json('config/usage_stats.json') or _default_usage()
         stats = _usage_cache
@@ -1223,6 +1226,20 @@ def login():
         return fail('未知角色')
     except Exception as e:
         return fail(f'登录失败: {e}')
+
+@app.route('/api/track/resume', methods=['POST'])
+def track_resume():
+    """记录"自动登录恢复"为一次登录活跃。前端在浏览器本地做了每日去重，
+    因此这里每浏览器每天至多触发一次，用于把长期保持登录态的家长/孩子计入统计。
+    超管在 record_login 内部已被忽略。Best-effort，绝不抛错。"""
+    try:
+        data = request.get_json() or {}
+        role = data.get('role')
+        if role in ('parent', 'child', 'code'):
+            record_login(role)
+        return ok()
+    except Exception:
+        return ok()
 
 @app.route('/api/change-password', methods=['POST'])
 def change_password():

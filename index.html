@@ -512,7 +512,7 @@ let S = {
     config: { default_replay_limit: 5 },
     entryCode: null, entrySession: null,
     checkedWords: [], generatedWords: [],
-    selfSelectWords: null,
+    selfSelectWords: null, selfSelectUnitId: null,
     dict: { words: [], idx: 0, mode: 'blind', replays: 0, maxReplay: 5 },
     selectedUnits: new Set(),
     selectedLessons: new Set(),
@@ -757,6 +757,13 @@ function init() {
             S.family_name = s.family_name; S.child_id = s.child_id;
             S.child_name = s.child_name; S.grade = s.grade || 7;
             enterApp();
+            // 长期保持登录态的用户每次打开不再走 /api/login，会导致登录统计偏低。
+            // 这里把"自动登录恢复"上报为一次登录，按浏览器每天去重，避免刷新重复计数。
+            const today = new Date().toISOString().slice(0, 10);
+            if (s.role && s.role !== 'admin' && localStorage.getItem('wdb_track_day') !== today) {
+                localStorage.setItem('wdb_track_day', today);
+                api('track/resume', { role: s.role }).catch(() => {});
+            }
         } catch (e) { localStorage.removeItem('wdb_session'); }
     }
     } catch (err) {
@@ -850,6 +857,8 @@ async function doLogin(role) {
         child_id: S.child_id, child_name: S.child_name, grade: S.grade
     }));
     if (S.family_id) localStorage.setItem('wdb_fid', S.family_id);
+    // 本次已由 /api/login 计过登录，标记当天已计数，避免自动登录恢复重复上报
+    localStorage.setItem('wdb_track_day', new Date().toISOString().slice(0, 10));
 
     enterApp();
 }
@@ -883,7 +892,7 @@ function logout() {
     S = { role: null, family_id: S.family_id, family_name: null, loginRole: 'parent', is_test: false,
           config: { default_replay_limit: 5 }, entryCode: null, entrySession: null,
           checkedWords: [], generatedWords: [],
-          selfSelectWords: null,
+          selfSelectWords: null, selfSelectUnitId: null,
           dict: { words: [], idx: 0, mode: 'blind', replays: 0, maxReplay: 5 },
           selectedUnits: new Set(), selectedLessons: new Set(), dictChildId: null };
     document.getElementById('nav-logout').classList.add('hidden');
@@ -1237,7 +1246,7 @@ async function loadUnits() {
         <div class="list-item">
             <div class="li-main" onclick="viewUnit('${u.unit_id}')" style="cursor:pointer">
                 <div class="li-title">${esc(u.title)} ${statusTag}</div>
-                <div class="li-sub">${u.word_count}词 · ${u.type === 'training' ? 'AI特训' : '手动录入'} · ${fmtDate(u.created_at)}${u.child_name ? ' · ' + esc(u.child_name) : ''}</div>
+                <div class="li-sub">${u.word_count}词 · ${u.type === 'training' ? 'AI特训' : (u.type === 'self' ? '孩子自选' : '手动录入')} · ${fmtDate(u.created_at)}${u.child_name ? ' · ' + esc(u.child_name) : ''}</div>
             </div>
             <div class="row gap4">
                 <button class="btn btn-sec btn-sm" onclick="startDictForUnit('${u.unit_id}')">听写</button>
@@ -1429,7 +1438,7 @@ async function viewUnit(uid) {
     `).join('');
     showModal(`
         <div class="modal-h"><h3>${esc(u.title)}</h3><button class="close" onclick="closeModal()">&times;</button></div>
-        <p class="muted sm mb8">${u.words.length}词 · ${u.type === 'training' ? 'AI特训' : '手动录入'} · ${fmtDate(u.created_at)}</p>
+        <p class="muted sm mb8">${u.words.length}词 · ${u.type === 'training' ? 'AI特训' : (u.type === 'self' ? '孩子自选' : '手动录入')} · ${fmtDate(u.created_at)}${u.child_name ? ' · ' + esc(u.child_name) : ''}</p>
         ${wordsHtml}
     `);
 }
@@ -1458,7 +1467,8 @@ async function loadRecords() {
         el.innerHTML = '<div class="empty"><p>暂无成绩记录</p></div>';
         return;
     }
-    el.innerHTML = r.data.map(rec => {
+    const recs = [...r.data].sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+    el.innerHTML = recs.map(rec => {
         const cls = rec.percentage >= 60 ? 'score-pass' : 'score-fail';
         return `
         <div class="list-item">
@@ -1727,6 +1737,19 @@ async function generateChildTraining() {
     const r = await api('ai/training', params);
     if (r.code !== 0) { showToast(r.msg, 'err'); return; }
     S.selfSelectWords = r.data.words;
+    // 持久化到家庭同一套 units 数据，让家长端能看到孩子的圈选
+    const ur = await api('units', {
+        family_id: S.family_id,
+        title: `${S.child_name || '孩子'}自选-${grade}年级`,
+        type: 'self',
+        grade,
+        status: 'pending',
+        created_by: 'child',
+        child_id: S.child_id,
+        child_name: S.child_name,
+        words: r.data.words
+    });
+    if (ur.code === 0) { S.selfSelectUnitId = ur.data.unit_id; }
     renderSelfLearn();
 }
 
@@ -1745,6 +1768,7 @@ function renderSelfLearn() {
         </div>`).join('');
     area.innerHTML = `
         <h4 style="margin-bottom:8px">自选词库（${words.length}词）</h4>
+        <p class="muted sm mb8">已同步到家庭词库，家长在「词库」页可查看你圈选的单词</p>
         <div class="row gap8 mb8">
             <button class="btn btn-primary btn-sm" onclick="startSelfDictation()">开始听写（自选）</button>
             <button class="btn btn-sec btn-sm" onclick="openSelfSelect()">重新挑选</button>
@@ -1764,7 +1788,7 @@ function startSelfDictation() {
     S.dict.maxReplay = S.config.default_replay_limit || 5;
     S.dictChildId = S.child_id;
     S.dictChildName = S.child_name;
-    S.dictUnitIds = null;
+    S.dictUnitIds = S.selfSelectUnitId ? [S.selfSelectUnitId] : null;
     showView('dictation');
     renderDictation();
 }
@@ -1782,7 +1806,7 @@ async function loadChildUnits() {
             <input type="checkbox">
             <div>
                 <div class="li-title">${esc(u.title)}</div>
-                <div class="li-sub">${u.word_count}词</div>
+                <div class="li-sub">${u.word_count}词 · ${u.type === 'self' ? '我自选' : (u.type === 'training' ? 'AI特训' : '录入')}</div>
             </div>
         </label>
     `).join('');
